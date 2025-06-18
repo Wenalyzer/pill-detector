@@ -1,5 +1,8 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel, HttpUrl, Field
 import onnxruntime as ort
 import numpy as np
@@ -451,6 +454,9 @@ async def lifespan(app: FastAPI):
     onnx_session = None
     class_names = None
 
+# 🚦 創建速率限制器
+limiter = Limiter(key_func=get_remote_address)
+
 # FastAPI 應用
 app = FastAPI(
     title="💊 Pill Detection API",
@@ -458,6 +464,10 @@ app = FastAPI(
     version="2.1.0",
     lifespan=lifespan
 )
+
+# 🚦 設置限流器和異常處理
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS 中間件
 app.add_middleware(
@@ -493,7 +503,8 @@ class DetectionResponse(BaseModel):
 
 # API 端點
 @app.get("/", tags=["系統"])
-async def root():
+@limiter.limit("120/minute")
+async def root(request: Request):
     """API 根端點"""
     return {
         "name": "💊 Pill Detection API",
@@ -504,7 +515,8 @@ async def root():
     }
 
 @app.get("/health", tags=["系統"])
-async def health_check():
+@limiter.limit("60/minute")
+async def health_check(request: Request):
     """健康檢查"""
     return {
         "status": "healthy",
@@ -516,7 +528,8 @@ async def health_check():
     }
 
 @app.get("/classes", tags=["模型"])
-async def get_supported_classes():
+@limiter.limit("30/minute")
+async def get_supported_classes(request: Request):
     """獲取所有支援的藥丸類別"""
     if not class_names:
         raise HTTPException(status_code=503, detail="類別名稱未載入")
@@ -530,7 +543,8 @@ async def get_supported_classes():
     }
 
 @app.post("/detect", response_model=DetectionResponse, tags=["檢測"])
-async def detect_pills(request: DetectionRequest):
+@limiter.limit("10/minute")  # 🚦 每分鐘最多 10 次請求
+async def detect_pills(request: Request, detection_request: DetectionRequest):
     """
     藥丸檢測主端點
     
@@ -541,8 +555,8 @@ async def detect_pills(request: DetectionRequest):
     
     try:
         # 🔽 下載圖像
-        logger.info(f"📥 下載圖像: {request.image_url}")
-        response = requests.get(str(request.image_url), timeout=15)
+        logger.info(f"📥 下載圖像: {detection_request.image_url}")
+        response = requests.get(str(detection_request.image_url), timeout=15)
         response.raise_for_status()
         
         pil_image = Image.open(io.BytesIO(response.content)).convert('RGB')
@@ -562,7 +576,7 @@ async def detect_pills(request: DetectionRequest):
         # 🔍 後處理
         detections = postprocess_onnx_output(
             outputs, 
-            threshold=request.threshold,
+            threshold=detection_request.threshold,
             target_size=(orig_w, orig_h)
         )
         
