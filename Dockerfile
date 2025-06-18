@@ -1,32 +1,16 @@
 FROM python:3.12.11-slim
 
-# 設置環境變數
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
 
-# 安裝系統依賴和字體
-RUN apt-get update && apt-get install -y \
-    # OpenCV 依賴
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
-    libgomp1 \
-    libgthread-2.0-0 \
-    # 網路工具 (用於健康檢查)
-    curl \
-    # 黑體字形包
-    fonts-dejavu \
-    fonts-dejavu-extra \
-    fonts-liberation \
-    fonts-noto \
-    fontconfig \
-    # 清理快取
-    && fc-cache -fv \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && \
+    apt-get install -y \
+        libgl1-mesa-glx \
+        libglib2.0-0 \
+        curl \
+        fonts-dejavu-core \
+        fontconfig && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # 設置工作目錄
 WORKDIR /app
