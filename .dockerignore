@@ -77,7 +77,6 @@ docker-compose*.yml
 .travis.yml
 Jenkinsfile
 deploy/
-scripts/
 
 # 大型檔案和資料夾 (根據需要調整)
 data/
