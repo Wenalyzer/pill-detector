@@ -13,7 +13,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # 設置工作目錄
-WORKDIR /app
+WORKDIR /workspace
 
 # 複製並安裝 Python 依賴 (先複製 requirements.txt 利用 Docker 快取)
 COPY requirements.txt .

@@ -5,7 +5,6 @@ import onnxruntime as ort
 import numpy as np
 import cv2
 from PIL import Image, ImageDraw, ImageFont
-from image_utils import save_image_to_base64
 import time
 import logging
 import json
@@ -401,6 +400,13 @@ def calculate_smart_label_positions(
         final_positions[idx] = label_positions[i]
     
     return final_positions
+
+def save_image_to_base64(image: Image.Image) -> str:
+    """將圖片轉為 base64"""
+    buffer = io.BytesIO()
+    image.save(buffer, format='JPEG', quality=90)
+    import base64
+    return base64.b64encode(buffer.getvalue()).decode()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

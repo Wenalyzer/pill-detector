@@ -8,7 +8,7 @@ import io
 def test_api_comprehensive():
     """全面測試 API"""
     
-    base_url = "http://localhost:8000"
+    base_url = "http://172.22.0.1:8000" # 替換為你的 API 基礎 URL
     
     print("🚀 開始測試藥丸辨識 API")
     print("=" * 50)
