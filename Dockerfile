@@ -38,11 +38,16 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 # 複製應用檔案
 COPY ./app ./app
-COPY ./models ./models
+COPY ./scripts ./scripts
+
+# 下載模型
+RUN python scripts/download_model.py
+
+# 驗證模型存在
+RUN ls -la models/inference_model.onnx && echo "✅ Model downloaded successfully"
 
 # 驗證關鍵檔案存在
-RUN ls -la models/inference_model.onnx && \
-    ls -la app/_annotations.coco.json && \
+RUN ls -la app/_annotations.coco.json && \
     ls -la app/main.py && \
     echo "✅ 所有必要檔案都存在"
 
