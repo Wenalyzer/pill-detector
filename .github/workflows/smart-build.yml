@@ -3,7 +3,6 @@ name: 🚀 Smart Build & Version Management
 on:
   push:
     branches: [ main ]
-    tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
 
@@ -40,8 +39,6 @@ jobs:
         tags: |
           type=ref,event=branch
           type=ref,event=pr,prefix=pr-
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
           type=raw,value=latest,enable={{is_default_branch}}
     
     - name: Build and push
@@ -58,12 +55,11 @@ jobs:
       run: |
         echo "🧪 Testing the built Docker image..."
         
-        # 選擇測試用的 image
+        # 簡化的 image 選擇 (移除不會執行的 tag 分支)
         if [ "${{ github.ref_name }}" == "main" ]; then
           TEST_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
-        elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
-          TEST_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}"
         else
+          # PR 情況
           TEST_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:pr-${{ github.event.number }}"
         fi
         
