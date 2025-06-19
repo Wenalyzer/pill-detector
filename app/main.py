@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, File, UploadFile, Form
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -660,6 +661,440 @@ async def detect_pills(request: Request, detection_request: DetectionRequest):
     except Exception as e:
         logger.error(f"❌ 檢測失敗: {e}")
         raise HTTPException(status_code=500, detail=f"檢測處理失敗: {str(e)}")
+
+@app.post("/detect-file", tags=["檢測"])
+@limiter.limit("10/minute")
+async def detect_pills_from_file(
+    request: Request,
+    file: UploadFile = File(..., description="上傳的圖片檔案"),
+    threshold: float = Form(default=Config.DEFAULT_THRESHOLD, ge=0.1, le=1.0)
+):
+    """
+    直接上傳圖片檔案進行藥丸檢測
+    
+    支援 JPG, PNG 等常見圖片格式
+    """
+    if not onnx_session or not class_names:
+        raise HTTPException(status_code=503, detail="服務未就緒")
+    
+    try:
+        # 檢查檔案類型
+        if not file.content_type.startswith('image/'):
+            raise HTTPException(status_code=400, detail="請上傳圖片檔案")
+        
+        # 📥 讀取上傳的圖片
+        logger.info(f"📥 處理上傳檔案: {file.filename}")
+        image_data = await file.read()
+        pil_image = Image.open(io.BytesIO(image_data)).convert('RGB')
+        orig_w, orig_h = pil_image.size
+        logger.info(f"🖼️ 圖像尺寸: {orig_w}x{orig_h}")
+        
+        # 🔄 預處理
+        image_array = np.array(pil_image)
+        input_tensor = preprocess_image_for_onnx(image_array)
+        
+        # 🤖 推理
+        start_time = time.time()
+        input_name = onnx_session.get_inputs()[0].name
+        outputs = onnx_session.run(None, {input_name: input_tensor})
+        inference_time = (time.time() - start_time) * 1000
+        
+        # 🔍 後處理
+        detections = postprocess_onnx_output(
+            outputs, 
+            threshold=threshold,
+            target_size=(orig_w, orig_h)
+        )
+        
+        total_detections = len(detections['class_id'])
+        logger.info(f"🎯 檢測到 {total_detections} 個藥丸")
+        
+        # 🎨 繪製結果 (使用相同的繪製邏輯)
+        annotated_array = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
+        
+        if total_detections > 0:
+            h, w = image_array.shape[:2]
+            font_size = max(16, int(min(w, h) / 35))
+            thickness = max(2, int(min(w, h) / 400))
+            
+            # 智能標籤位置
+            label_positions = calculate_smart_label_positions(detections, (w, h), font_size)
+            
+            # 先繪製所有檢測框
+            for i, (box, conf, class_id) in enumerate(zip(
+                detections['xyxy'], 
+                detections['confidence'], 
+                detections['class_id']
+            )):
+                x1, y1, x2, y2 = box.astype(int)
+                x1, y1 = max(0, x1), max(0, y1)
+                x2, y2 = min(w, x2), min(h, y2)
+                
+                color = Config.COLORS[class_id % len(Config.COLORS)]
+                cv2.rectangle(annotated_array, (x1, y1), (x2, y2), color, thickness)
+            
+            # 再繪製所有標籤
+            for i, (box, conf, class_id) in enumerate(zip(
+                detections['xyxy'], 
+                detections['confidence'], 
+                detections['class_id']
+            )):
+                pill_name = class_names[class_id] if class_id < len(class_names) else f"Unknown_{class_id}"
+                color = Config.COLORS[class_id % len(Config.COLORS)]
+                
+                label = f"{pill_name} {conf:.2f}"
+                text_x, text_y = label_positions[i]
+                annotated_array = draw_high_quality_text(
+                    annotated_array, label, (text_x, text_y), font_size, color
+                )
+        
+        # 📤 輸出結果
+        annotated_pil = Image.fromarray(cv2.cvtColor(annotated_array, cv2.COLOR_BGR2RGB))
+        image_base64 = save_image_to_base64(annotated_pil)
+        
+        detection_results = [
+            DetectionResult(
+                detection_id=i + 1,
+                class_id=int(class_id),
+                pill_name=class_names[class_id] if class_id < len(class_names) else f"Unknown_{class_id}",
+                confidence=float(conf),
+                bbox=[float(x) for x in box]
+            )
+            for i, (class_id, conf, box) in enumerate(zip(
+                detections['class_id'], 
+                detections['confidence'], 
+                detections['xyxy']
+            ))
+        ]
+        
+        logger.info(f"✅ 檔案處理完成 - 檢測:{total_detections}, 推理:{inference_time:.1f}ms")
+        
+        return {
+            "success": True,
+            "filename": file.filename,
+            "detections": detection_results,
+            "annotated_image_base64": image_base64,
+            "inference_time_ms": round(inference_time, 2),
+            "total_detections": total_detections
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ 檔案檢測失敗: {e}")
+        raise HTTPException(status_code=500, detail=f"檔案處理失敗: {str(e)}")
+
+@app.get("/test", response_class=HTMLResponse, tags=["工具"])
+async def test_page():
+    """Web 測試界面 - 直接上傳圖片進行檢測"""
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>💊 藥丸偵測測試</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+            body { 
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                max-width: 900px; 
+                margin: 0 auto; 
+                padding: 20px; 
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+            }
+            .container {
+                background: white;
+                padding: 30px;
+                border-radius: 15px;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            }
+            h1 { 
+                color: #4a5568; 
+                text-align: center; 
+                margin-bottom: 10px;
+                font-size: 2.5em;
+            }
+            .subtitle {
+                text-align: center;
+                color: #718096;
+                margin-bottom: 30px;
+                font-size: 1.1em;
+            }
+            .form-group { 
+                margin: 20px 0; 
+            }
+            label { 
+                display: block; 
+                margin-bottom: 8px; 
+                font-weight: 600;
+                color: #2d3748;
+            }
+            input[type="file"] { 
+                width: 100%; 
+                padding: 12px; 
+                border: 2px dashed #cbd5e0;
+                border-radius: 8px;
+                background: #f7fafc;
+                transition: all 0.3s;
+            }
+            input[type="file"]:hover {
+                border-color: #667eea;
+                background: #edf2f7;
+            }
+            input[type="number"] { 
+                width: 200px; 
+                padding: 10px; 
+                border: 2px solid #e2e8f0;
+                border-radius: 6px;
+                font-size: 16px;
+            }
+            button { 
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white; 
+                padding: 12px 30px; 
+                border: none; 
+                border-radius: 25px; 
+                cursor: pointer;
+                font-size: 16px;
+                font-weight: 600;
+                transition: transform 0.2s;
+                box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            }
+            button:hover { 
+                transform: translateY(-2px);
+                box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+            }
+            button:disabled {
+                background: #a0aec0;
+                cursor: not-allowed;
+                transform: none;
+            }
+            #results { 
+                margin-top: 30px; 
+                padding: 20px; 
+                border: 1px solid #e2e8f0; 
+                border-radius: 10px;
+                background: #f8fafc;
+            }
+            .detection { 
+                background: linear-gradient(135deg, #e6fffa 0%, #b2f5ea 100%);
+                padding: 15px; 
+                margin: 10px 0; 
+                border-radius: 8px;
+                border-left: 4px solid #38b2ac;
+            }
+            .detection strong {
+                color: #2c7a7b;
+                font-size: 1.1em;
+            }
+            img { 
+                max-width: 100%; 
+                height: auto; 
+                margin-top: 15px; 
+                border-radius: 10px;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            }
+            .loading {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 20px;
+            }
+            .spinner {
+                border: 3px solid #f3f3f3;
+                border-top: 3px solid #667eea;
+                border-radius: 50%;
+                width: 30px;
+                height: 30px;
+                animation: spin 1s linear infinite;
+                margin-right: 10px;
+            }
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+            .error {
+                background: linear-gradient(135deg, #fed7d7 0%, #feb2b2 100%);
+                border-left: 4px solid #e53e3e;
+                color: #742a2a;
+            }
+            .success-stats {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 15px;
+                margin: 20px 0;
+            }
+            .stat-card {
+                background: white;
+                padding: 15px;
+                border-radius: 8px;
+                text-align: center;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            }
+            .stat-number {
+                font-size: 1.8em;
+                font-weight: bold;
+                color: #667eea;
+            }
+            .stat-label {
+                color: #718096;
+                font-size: 0.9em;
+                margin-top: 5px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🔍 藥丸偵測系統</h1>
+            <p class="subtitle">上傳圖片，AI 立即識別藥丸種類</p>
+            
+            <form id="uploadForm" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label>📷 選擇圖片檔案:</label>
+                    <input type="file" id="imageFile" accept="image/*" required>
+                    <small style="color: #718096;">支援 JPG, PNG, JPEG 等格式</small>
+                </div>
+                
+                <div class="form-group">
+                    <label>🎯 信心度閾值:</label>
+                    <input type="number" id="threshold" value="0.5" min="0.1" max="1.0" step="0.1">
+                    <small style="color: #718096;">數值越高，檢測越嚴格 (建議 0.3-0.7)</small>
+                </div>
+                
+                <div class="form-group">
+                    <button type="submit" id="submitBtn">🚀 開始偵測</button>
+                </div>
+            </form>
+            
+            <div id="results" style="display:none;"></div>
+        </div>
+        
+        <script>
+        document.getElementById('uploadForm').onsubmit = async function(e) {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('imageFile');
+            const thresholdInput = document.getElementById('threshold');
+            const submitBtn = document.getElementById('submitBtn');
+            
+            if (!fileInput.files[0]) {
+                alert('請先選擇圖片檔案！');
+                return;
+            }
+            
+            // 檢查檔案大小 (限制 10MB)
+            if (fileInput.files[0].size > 10 * 1024 * 1024) {
+                alert('檔案太大！請選擇小於 10MB 的圖片。');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('threshold', thresholdInput.value);
+            
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.style.display = 'block';
+            
+            // 顯示載入狀態
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '🔄 偵測中...';
+            resultsDiv.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <span>AI 正在分析圖片，請稍候...</span>
+                </div>
+            `;
+            
+            try {
+                const response = await fetch('/detect-file', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || `HTTP ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                let html = '<h2>📊 偵測結果</h2>';
+                
+                // 統計卡片
+                html += '<div class="success-stats">';
+                html += `
+                    <div class="stat-card">
+                        <div class="stat-number">${result.total_detections}</div>
+                        <div class="stat-label">偵測到的藥丸</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${result.inference_time_ms}ms</div>
+                        <div class="stat-label">推論時間</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${(parseFloat(thresholdInput.value) * 100).toFixed(0)}%</div>
+                        <div class="stat-label">信心度閾值</div>
+                    </div>
+                `;
+                html += '</div>';
+                
+                html += `<p><strong>檔案名稱:</strong> ${result.filename}</p>`;
+                
+                if (result.total_detections > 0) {
+                    html += '<h3>🔍 偵測詳情:</h3>';
+                    result.detections.forEach((detection, index) => {
+                        html += `<div class="detection">
+                            <strong>${index + 1}. ${detection.pill_name}</strong><br>
+                            <span style="font-size: 0.9em;">
+                                🎯 信心度: ${(detection.confidence * 100).toFixed(1)}% | 
+                                📍 位置: (${Math.round(detection.bbox[0])}, ${Math.round(detection.bbox[1])}) - 
+                                (${Math.round(detection.bbox[2])}, ${Math.round(detection.bbox[3])})
+                            </span>
+                        </div>`;
+                    });
+                } else {
+                    html += '<div class="detection" style="background: #fef5e7; border-left-color: #ed8936;">';
+                    html += '<strong>🤷‍♂️ 未偵測到藥丸</strong><br>';
+                    html += '<span style="font-size: 0.9em;">可以嘗試降低信心度閾值，或確認圖片中是否包含支援的藥丸類型。</span>';
+                    html += '</div>';
+                }
+                
+                if (result.annotated_image_base64) {
+                    html += '<h3>📸 標註結果:</h3>';
+                    html += `<img src="data:image/jpeg;base64,${result.annotated_image_base64}" alt="標註結果">`;
+                }
+                
+                resultsDiv.innerHTML = html;
+                
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="detection error">
+                    <h3>❌ 偵測失敗</h3>
+                    <p><strong>錯誤訊息:</strong> ${error.message}</p>
+                    <p>請檢查：</p>
+                    <ul>
+                        <li>圖片格式是否正確 (JPG, PNG)</li>
+                        <li>檔案大小是否小於 10MB</li>
+                        <li>網路連線是否正常</li>
+                    </ul>
+                    <p>如問題持續，請稍後再試。</p>
+                </div>`;
+            } finally {
+                // 恢復按鈕狀態
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '🚀 開始偵測';
+            }
+        }
+        
+        // 檔案選擇預覽
+        document.getElementById('imageFile').onchange = function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                console.log(`選擇了檔案: ${file.name} (${(file.size/1024/1024).toFixed(2)}MB)`);
+            }
+        }
+        </script>
+    </body>
+    </html>
+    """
 
 if __name__ == "__main__":
     import uvicorn
