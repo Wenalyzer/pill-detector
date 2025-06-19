@@ -7,9 +7,9 @@ import io
 
 def test_api_comprehensive():
     """全面測試 API"""
-
-    base_url = "http://localhost:8000" # 替換為你的 API 基礎 URL
-
+    
+    base_url = "https://pill-detector-23010935669.us-central1.run.app" # 替換為你的 API URL
+    
     print("🚀 開始測試藥丸辨識 API")
     print("=" * 50)
     
