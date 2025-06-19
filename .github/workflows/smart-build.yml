@@ -3,16 +3,16 @@ name: 🚀 Smart Build & Version Management
 on:
   push:
     branches: [ main ]
-    tags: [ 'v*' ]  # 支援版本標籤
+    tags: [ 'v*' ]
   pull_request:
-    branches: [ main ]  # 新增：PR 觸發
+    branches: [ main ]
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: wenalyzer/pill-detector
 
 jobs:
-  build-and-test:  # 改名：更清楚表達功能
+  build-and-test:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -32,7 +32,6 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
     
-    # 🎯 智能標籤生成 (保持原有功能)
     - name: Extract metadata
       id: meta
       uses: docker/metadata-action@v5
@@ -40,11 +39,10 @@ jobs:
         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
         tags: |
           type=ref,event=branch
-          type=ref,event=pr,prefix=pr-  # 新增：PR 標籤
+          type=ref,event=pr,prefix=pr-
           type=semver,pattern={{version}}
           type=semver,pattern={{major}}.{{minor}}
           type=raw,value=latest,enable={{is_default_branch}}
-          type=sha,prefix={{branch}}-,format=short  # 新增：SHA 標籤
     
     - name: Build and push
       uses: docker/build-push-action@v5
@@ -53,21 +51,26 @@ jobs:
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
-        # 構建快取 (保持原有功能)
         cache-from: type=gha
         cache-to: type=gha,mode=max
     
-    # 🧪 新增：整合測試
     - name: Test Docker Image
       run: |
         echo "🧪 Testing the built Docker image..."
         
-        # 取得剛構建的 image
-        TEST_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+        # 選擇測試用的 image
+        if [ "${{ github.ref_name }}" == "main" ]; then
+          TEST_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+        elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          TEST_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}"
+        else
+          TEST_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:pr-${{ github.event.number }}"
+        fi
+        
         echo "Testing image: $TEST_IMAGE"
         
         # 啟動容器
-        docker run -d --name test-container -p 8000:8000 $TEST_IMAGE
+        docker run -d --name test-container -p 8000:8000 "$TEST_IMAGE"
         
         # 等待啟動
         echo "⏳ Waiting for container to start..."
@@ -80,32 +83,28 @@ jobs:
           exit 1
         fi
         
-        # 測試健康檢查
+        # 健康檢查
         echo "🔍 Testing health endpoint..."
-        for i in {1..30}; do
+        for i in {1..20}; do
           if curl -s -f http://localhost:8000/health > /dev/null; then
             echo "✅ Health check passed after ${i} attempts"
             break
           fi
-          echo "⏳ Attempt $i/30, retrying in 5s..."
+          echo "⏳ Attempt $i/20, retrying in 5s..."
           sleep 5
-          if [ $i -eq 30 ]; then
-            echo "❌ Health check failed after 30 attempts"
+          if [ $i -eq 20 ]; then
+            echo "❌ Health check failed"
             docker logs test-container
             exit 1
           fi
         done
         
-        # 測試基本 API
-        echo "🔍 Testing basic endpoints..."
+        # API 測試
+        echo "🔍 Testing endpoints..."
+        curl -f http://localhost:8000/ || exit 1
+        curl -f http://localhost:8000/classes || exit 1
         
-        echo "Testing root endpoint..."
-        curl -f http://localhost:8000/ || (echo "❌ Root endpoint failed" && exit 1)
-        
-        echo "Testing classes endpoint..."
-        curl -f http://localhost:8000/classes || (echo "❌ Classes endpoint failed" && exit 1)
-        
-        echo "🎉 All integration tests passed!"
+        echo "🎉 All tests passed!"
     
     - name: Cleanup test container
       if: always()
@@ -113,7 +112,6 @@ jobs:
         docker stop test-container || true
         docker rm test-container || true
     
-    # 📊 新增：構建結果摘要
     - name: Build Summary
       if: always()
       run: |
@@ -126,7 +124,7 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 🐳 Built Images" >> $GITHUB_STEP_SUMMARY
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-        echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+        echo "${{ steps.meta.outputs.tags }}" | sed 's/,/\n/g' >> $GITHUB_STEP_SUMMARY
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 🧪 Test Status" >> $GITHUB_STEP_SUMMARY
