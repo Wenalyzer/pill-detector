@@ -34,28 +34,73 @@
 }
 ```
 
-## 5. 範例
-### Python
+## 5. 如何處理 API 回應
+
+API 會回傳一個 JSON 物件，主要欄位如下：
+- `success`：是否成功
+- `detections`：偵測到的藥丸清單（每個包含名稱、信心度、座標等）
+- `annotated_image_base64`：標註後圖片的 base64 字串
+- `inference_time_ms`：推論時間（毫秒）
+- `total_detections`：偵測到的藥丸數量
+
+### Python 處理範例（含上傳到 GCP/AWS 雲端）
+
+#### 1. 取得 API 回應並儲存圖片
 ```python
 import requests
+import base64
+
 url = "https://pill-detector-23010935669.us-central1.run.app/detect"
 payload = {
     "image_url": "https://i.postimg.cc/fRrjZ0DK/IMG-1237-JPG-rf-65888afb7f3a5acce6b2cfa2106a9040.jpg",
     "threshold": 0.5
 }
 resp = requests.post(url, json=payload)
-print(resp.json())
+result = resp.json()
+
+if result.get("success") and result.get("annotated_image_base64"):
+    # 轉成二進位圖片
+    img_bytes = base64.b64decode(result["annotated_image_base64"])
+    # 儲存本地檔案（可選）
+    with open("annotated.jpg", "wb") as f:
+        f.write(img_bytes)
+else:
+    print("API 回傳失敗:", result)
 ```
 
-### curl
-```bash
-curl -X POST "https://pill-detector-23010935669.us-central1.run.app/detect" \
-  -H "Content-Type: application/json" \
-  -d '{"image_url": "https://i.postimg.cc/fRrjZ0DK/IMG-1237-JPG-rf-65888afb7f3a5acce6b2cfa2106a9040.jpg", "threshold": 0.5}'
+#### 2. 上傳到 Google Cloud Storage (GCS)
+```python
+from google.cloud import storage
+
+client = storage.Client()
+bucket = client.bucket('你的bucket名稱')
+blob = bucket.blob('路徑/annotated.jpg')
+blob.upload_from_string(img_bytes, content_type='image/jpeg')
+print('GCS 圖片網址:', blob.public_url)
 ```
 
-## 6. 注意事項
-- `image_url` 必須為公開可存取的圖片網址。
-- `threshold` 越高，檢測越嚴格（建議 0.3~0.7）。
-- 回傳的 `annotated_image_base64` 可直接顯示於 `<img src="data:image/jpeg;base64,..." />`。
-- 若有錯誤，會回傳 HTTP 4xx/5xx 及 `detail` 欄位。
+#### 3. 上傳到 AWS S3
+```python
+import boto3
+import io
+
+s3 = boto3.client('s3')
+s3.upload_fileobj(
+    Fileobj=io.BytesIO(img_bytes),
+    Bucket='你的bucket名稱',
+    Key='路徑/annotated.jpg',
+    ExtraArgs={'ContentType': 'image/jpeg', 'ACL': 'public-read'}
+)
+url = f'https://{"你的bucket名稱"}.s3.amazonaws.com/路徑/annotated.jpg'
+print('S3 圖片網址:', url)
+```
+
+> 請先安裝對應套件：`pip install google-cloud-storage boto3`
+> 並依官方文件設好認證與權限。
+
+### 前端顯示標註圖片
+
+將 `annotated_image_base64` 用於 `<img>` 標籤：
+```html
+<img src="data:image/jpeg;base64,{{ annotated_image_base64 }}" />
+```
