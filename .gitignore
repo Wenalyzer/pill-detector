@@ -52,7 +52,46 @@ temp/
 private/
 secrets/
 
-# Models
+# Models (uncomment if models are too large for git)
 models/*.onnx
 models/*.bin
 models/*.safetensors
+
+# 應用程式特定
+# 上傳檔案
+uploads/
+static/uploads/
+test_images/
+sample_images/
+
+# 環境變數檔案
+.env.*
+!.env.example
+
+# 快取檔案
+.cache/
+cache/
+__pycache__/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# Claude Code 相關
+.claude/
+
+# 測試輸出
+test_output/
+*.coverage
+htmlcov/
+.pytest_cache/
+
+# Docker
+.dockerignore
+
+# 執行時檔案
+*.pid
+*.sock
+
+# 文檔
+GITHUB_WORKFLOW.md
+CLAUDE.md

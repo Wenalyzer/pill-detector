@@ -33,6 +33,8 @@ RUN ls -la models/inference_model.onnx && echo "✅ Model downloaded successfull
 # 驗證關鍵檔案存在
 RUN ls -la app/_annotations.coco.json && \
     ls -la app/main.py && \
+    ls -la app/config.py && \
+    ls -la app/pill_detector.py && \
     echo "✅ 所有必要檔案都存在"
 
 # 暴露端口

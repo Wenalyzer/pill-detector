@@ -1,10 +1,13 @@
-name: 🚀 Smart Build & Version Management
+name: 🚀 藥丸檢測 API - 建置與測試
 
 on:
   push:
-    branches: [ main ]
+    paths-ignore:
+      - 'README.md'
+      - 'README_API.md'
+    branches: [ "**" ]  
   pull_request:
-    branches: [ main ]
+    branches: [ "**" ]
 
 env:
   REGISTRY: ghcr.io

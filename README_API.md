@@ -1,47 +1,71 @@
-# 藥丸辨識 API 使用說明
+# 藥丸檢測 API 使用說明
 
 ## 1. 服務簡介
-本 API 提供藥丸影像辨識功能，支援圖片網址輸入，回傳辨識結果與標註後圖片。
+本 API 提供藥丸影像檢測功能，使用 RF-DETR 模型進行物件檢測，支援圖片 URL 和檔案上傳兩種方式。
 
 ## 2. API 端點
-- URL：`https://pill-detector-23010935669.us-central1.run.app/detect`
-- 方法：POST
-- Content-Type：application/json
+
+### 基礎資訊
+- **服務網址**: `https://pill-detector-23010935669.us-central1.run.app`
+- **健康檢查**: `GET /health`
+- **支援類別**: `GET /classes`
+
+### 檢測端點
+
+#### 🌐 URL 檢測
+- **端點**: `POST /detect`
+- **Content-Type**: `application/json`
+
+#### 📁 檔案上傳檢測  
+- **端點**: `POST /detect-file`
+- **Content-Type**: `multipart/form-data`
 
 ## 3. 請求格式
+
+### URL 檢測
 ```json
 {
-  "image_url": "圖片網址 (string)",
-  "threshold": 0.5 // 信心度閾值，選填，預設 0.5
+  "image_url": "https://example.com/pill-image.jpg"
 }
+```
+
+### 檔案上傳
+```bash
+curl -X POST "https://pill-detector-23010935669.us-central1.run.app/detect-file" \
+  -F "file=@your-image.jpg"
 ```
 
 ## 4. 回應格式
 ```json
 {
   "success": true,
-  "detections": [
-    {
-      "pill_name": "藥丸名稱",
-      "confidence": 0.98,
-      "bbox": [x1, y1, x2, y2]
-    }
-    // ...
-  ],
-  "annotated_image_base64": "base64字串（標註後圖片）",
-  "inference_time_ms": 123.45,
-  "total_detections": 2
+  "message": "檢測完成，發現 2 個藥丸",
+  "data": {
+    "detections": [
+      {
+        "class_id": 1,
+        "class_name": "Amoxicillin",
+        "confidence": 0.95,
+        "bbox": [x1, y1, x2, y2]
+      }
+    ],
+    "annotated_image": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ...",
+    "total_detections": 2
+  }
 }
 ```
 
-## 5. 如何處理 API 回應
+## 5. 回應欄位說明
 
-API 會回傳一個 JSON 物件，主要欄位如下：
-- `success`：是否成功
-- `detections`：偵測到的藥丸清單（每個包含名稱、信心度、座標等）
-- `annotated_image_base64`：標註後圖片的 base64 字串
-- `inference_time_ms`：推論時間（毫秒）
-- `total_detections`：偵測到的藥丸數量
+- **`success`**: 檢測是否成功 (boolean)
+- **`message`**: 結果訊息 (string)  
+- **`data.detections`**: 檢測結果陣列
+  - `class_id`: 類別 ID (integer)
+  - `class_name`: 藥丸名稱 (string)
+  - `confidence`: 信心度 0-1 (float)
+  - `bbox`: 邊界框座標 [x1, y1, x2, y2] (array)
+- **`data.annotated_image`**: 標註後圖片 (base64 data URL)
+- **`data.total_detections`**: 檢測到的藥丸總數 (integer)
 
 ### Python 處理範例（含上傳到 GCP/AWS 雲端）
 
