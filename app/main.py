@@ -1,6 +1,5 @@
 """
-藥丸檢測 API - 簡化版主應用
-保持核心功能，移除過度複雜的抽象層
+藥丸檢測 API - 主應用
 """
 import logging
 from contextlib import asynccontextmanager

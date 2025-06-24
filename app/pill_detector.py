@@ -1,6 +1,5 @@
 """
-藥丸檢測核心模組
-整合圖像處理、模型推理和結果標註功能
+藥丸檢測核心模組：整合圖像預處理、模型推理與結果標註
 """
 import os
 import json
@@ -68,7 +67,7 @@ class PillDetector:
             raise
             
     def preprocess_image(self, image_array: np.ndarray) -> np.ndarray:
-        """圖像預處理 - 完全匹配 main_legacy.py 的處理流程"""
+        """圖像預處理：流程與 main_legacy.py 完全一致"""
         try:
             # 步驟1: 轉換為 CHW 並正規化到 [0,1]
             tensor_like = image_array.transpose((2, 0, 1)).astype(np.float32) / 255.0
@@ -93,7 +92,7 @@ class PillDetector:
             raise
         
     def postprocess_results(self, outputs, original_size: Tuple[int, int]) -> List[Dict]:
-        """後處理模型輸出"""
+        """模型推理結果後處理，產生標準化檢測結果"""
         try:
             # 提取預測結果 - 按照 main_legacy.py 的方式
             pred_boxes, pred_logits = outputs[0][0], outputs[1][0]  # 移除 batch 維度
@@ -157,7 +156,7 @@ class PillDetector:
             return []
             
     def get_optimal_font(self, font_size: int):
-        """獲取最佳可用字體 - 與 main_legacy.py 一致"""
+        """取得最佳可用字體（與 main_legacy.py 相同邏輯）"""
         font_paths = [
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
             "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
@@ -175,7 +174,7 @@ class PillDetector:
         return ImageFont.load_default()
 
     def calculate_smart_label_positions(self, detections: List[Dict], image_size: Tuple[int, int], font_size: int) -> List[Optional[Tuple[int, int]]]:
-        """智能計算標籤位置，避免重疊和遮擋檢測框 - 與 main_legacy.py 一致"""
+        """智能計算標籤位置，避免重疊與遮擋（與 main_legacy.py 一致）"""
         w, h = image_size
         
         if len(detections) == 0:
@@ -316,7 +315,7 @@ class PillDetector:
         return final_positions
 
     def annotate_image(self, image: Image.Image, detections: List[Dict]) -> Image.Image:
-        """在圖像上標註檢測結果 - 使用 main_legacy.py 的智能標籤定位"""
+        """在圖像上標註檢測結果（採用智能標籤定位）"""
         if not detections:
             return image
             
@@ -384,7 +383,7 @@ class PillDetector:
         return annotated
         
     async def detect_from_url(self, url: str) -> Dict:
-        """從 URL 檢測藥丸"""
+        """從圖片 URL 進行藥丸檢測"""
         try:
             # 下載圖像
             response = requests.get(url, timeout=10)
@@ -399,7 +398,7 @@ class PillDetector:
             raise
             
     async def detect_from_file(self, file_content: bytes) -> Dict:
-        """從檔案內容檢測藥丸"""
+        """從上傳檔案內容進行藥丸檢測"""
         try:
             image = Image.open(BytesIO(file_content))
             return await self._detect_from_image(image)
@@ -409,7 +408,7 @@ class PillDetector:
             raise
             
     async def _detect_from_image(self, image: Image.Image) -> Dict:
-        """核心檢測邏輯"""
+        """執行單張圖片的完整檢測流程"""
         # 轉換為 RGB 模式
         if image.mode != 'RGB':
             image = image.convert('RGB')
@@ -444,9 +443,9 @@ class PillDetector:
         }
         
     def get_classes(self) -> List[str]:
-        """獲取所有支援的類別"""
+        """取得所有支援的藥丸類別名稱"""
         return self.class_names or []
         
     def is_ready(self) -> bool:
-        """檢查檢測器是否就緒"""
+        """檢查模型與類別名稱是否載入完成"""
         return self.onnx_session is not None and self.class_names is not None
