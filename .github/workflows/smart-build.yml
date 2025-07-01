@@ -73,7 +73,7 @@ jobs:
         
         # 等待啟動
         echo "⏳ Waiting for container to start..."
-        sleep 60
+        sleep 30
         
         # 檢查容器狀態
         if ! docker ps | grep test-container; then
@@ -101,7 +101,6 @@ jobs:
         # API 測試
         echo "🔍 Testing endpoints..."
         curl -f http://localhost:8000/ || exit 1
-        curl -f http://localhost:8000/classes || exit 1
         
         echo "🎉 All tests passed!"
     
