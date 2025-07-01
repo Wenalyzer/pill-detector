@@ -1,55 +1,62 @@
 # Git
 .git
 .gitignore
+.gitattributes
+README.md
 
 # Python
-__pycache__
+__pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
-build
-develop-eggs
-dist
-downloads
-eggs
-.eggs
-lib
-lib64
-parts
-sdist
-var
-wheels
-*.egg-info
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
 .installed.cfg
 *.egg
 
 # Virtual environments
 .env
 .venv
-env
-venv
-ENV
-env.bak
-venv.bak
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 
 # IDE
-.vscode
-.idea
+.vscode/
+.idea/
 *.swp
 *.swo
+*.sublime-*
 
 # System files
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# 測試和開發檔案
+# 測試和開發檔案 - 生產環境不需要
+tests/
 test_images/
 sample_images/
 test_output/
 *.coverage
 htmlcov/
 .pytest_cache/
+.tox/
+.coverage.*
 
 # 日誌
 *.log
@@ -61,7 +68,7 @@ logs/
 temp/
 tmp/
 
-# 上傳檔案
+# 上傳檔案 - 運行時會重新創建
 uploads/
 static/uploads/
 
@@ -70,15 +77,19 @@ static/uploads/
 cache/
 
 # Jupyter Notebook
-.ipynb_checkpoints
+.ipynb_checkpoints/
+*.ipynb
 
 # Claude Code 相關
 .claude/
+CLAUDE.md
 
 # Docker 相關
 Dockerfile.dev
-docker-compose.dev.yml
-docker-compose.override.yml
+Dockerfile.test
+docker-compose.yml
+docker-compose.*.yml
+.dockerignore
 
 # 執行時檔案
 *.pid
@@ -87,8 +98,31 @@ docker-compose.override.yml
 # 私有檔案
 private/
 secrets/
+.env.*
 
-# 文檔（保留重要的）
-CLAUDE.md
-GITHUB_WORKFLOW.md
+# 文檔 - 生產環境不需要
 docs/
+*.md
+LICENSE
+CHANGELOG*
+
+# 舊版代碼 - 生產環境不需要
+legacy/
+
+# 開發工具配置
+.editorconfig
+.flake8
+.pylintrc
+pyproject.toml
+setup.cfg
+tox.ini
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+
+# 其他開發文件
+Makefile
+*.sh

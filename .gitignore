@@ -34,10 +34,12 @@ venv.bak/
 .idea/
 *.swp
 *.swo
+*.sublime-*
 
 # System files
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # Logs
 *.log
@@ -47,15 +49,11 @@ logs/
 *.tmp
 *.bak
 temp/
+tmp/
 
 # Private files
 private/
 secrets/
-
-# Models (uncomment if models are too large for git)
-models/*.onnx
-models/*.bin
-models/*.safetensors
 
 # 應用程式特定
 # 上傳檔案
@@ -71,19 +69,21 @@ sample_images/
 # 快取檔案
 .cache/
 cache/
-__pycache__/
 
 # Jupyter Notebook
 .ipynb_checkpoints/
+*.ipynb
 
 # Claude Code 相關
 .claude/
+CLAUDE.md
 
 # 測試輸出
 test_output/
 *.coverage
 htmlcov/
 .pytest_cache/
+.tox/
 
 # Docker
 .dockerignore
@@ -92,6 +92,20 @@ htmlcov/
 *.pid
 *.sock
 
-# 文檔
-GITHUB_WORKFLOW.md
-CLAUDE.md
+# 開發工具配置
+.editorconfig
+.flake8
+.pylintrc
+pyproject.toml
+setup.cfg
+tox.ini
+
+# CI/CD (如果使用的話)
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+
+models/*.onnx
+models/*.bin
+models/*.safetensors

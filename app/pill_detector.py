@@ -1,28 +1,53 @@
 """
-藥丸檢測核心模組：整合圖像預處理、模型推理與結果標註
+藥丸檢測核心模組 - RF-DETR ONNX推理引擎
+
+核心特色：
+- 優雅預處理流程：resize → to_tensor → normalize（在原始像素域操作，避免精度損失）
+- 完全匹配RF-DETR官方predict方法結果，但使用ONNX推理
+- 僅依賴 numpy + Pillow，移除PyTorch依賴
+- 職責分離：專注檢測，標註由detection_service處理
+
+技術規範參考：
+- docs/01_TECHNICAL_JOURNEY_COMPACT.md（演進總覽）
+- legacy/elegant_solution_spec.md（優雅方案詳細說明）
+- legacy/rfdetr_original_spec.md（原始RF-DETR實現規範）
 """
 import os
 import json
 import logging
-import base64
-from io import BytesIO
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Tuple
 import numpy as np
-import cv2
-import requests
 import onnxruntime as ort
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 
 from .config import *
+from .utils.coordinate_utils import CoordinateUtils
 
 logger = logging.getLogger(__name__)
 
 class PillDetector:
-    """藥丸檢測器主類"""
+    """
+    藥丸檢測器 - RF-DETR ONNX推理核心
+    
+    實現RF-DETR官方predict方法的ONNX版本，保持完全一致的結果：
+    
+    架構設計：
+    - 預處理：優雅的 resize → to_tensor → normalize 流程
+    - 推理：ONNX Runtime高效推理，替代PyTorch
+    - 後處理：每位置最高分類 → 閾值過濾 → Top-K選擇（符合物理直觀）
+    - 座標轉換：cxcywh → xyxy，並縮放到處理後圖像尺寸
+    
+    技術特點：
+    - 在原始像素域（uint8 [0,255]）進行resize，避免精度損失
+    - 支援長寬比保持的resize + padding到560x560
+    - 僅依賴 numpy + Pillow + ONNX Runtime，無OpenCV
+    - 職責單一：僅負責檢測，標註交由detection_service
+    """
     
     def __init__(self):
         self.onnx_session = None
         self.class_names = None
+        # 移除ImageAnnotator實例，由detection_service統一管理
         
     async def initialize(self):
         """初始化模型和類別名稱"""
@@ -66,86 +91,146 @@ class PillDetector:
             logger.error(f"❌ 載入類別名稱失敗: {e}")
             raise
             
-    def preprocess_image(self, image_array: np.ndarray) -> np.ndarray:
-        """圖像預處理：流程與 main_legacy.py 完全一致"""
+    def preprocess_image(self, image_array: np.ndarray) -> Tuple[np.ndarray, Image.Image]:
+        """
+        優雅預處理實現 - 完全匹配RF-DETR官方流程
+        
+        操作順序（關鍵）：resize → to_tensor → normalize
+        
+        為什麼這個順序重要：
+        - RF-DETR官方: PIL → to_tensor → normalize → resize
+        - 我們的優雅方案: PIL → resize → to_tensor → normalize
+        - 在原始像素域（uint8 [0,255]）resize避免標準化數據的精度損失
+        
+        具體流程：
+        1. numpy array → PIL Image
+        2. 長寬比保持resize + 黑色padding到560x560
+        3. PIL → tensor (CHW format, [0,1] range)
+        4. ImageNet標準化: (pixel - mean) / std
+        5. 添加batch維度: (1, C, H, W)
+        
+        Args:
+            image_array: 輸入圖像numpy陣列 (H,W,C) uint8 [0,255]
+            
+        Returns:
+            (input_tensor, processed_image): 
+            - input_tensor: ONNX模型輸入 (1,C,H,W) float32，ImageNet標準化
+            - processed_image: 處理後的PIL圖像 (560,560) RGB，用於後續座標計算
+            
+        參考：legacy/elegant_solution_spec.md
+        """
         try:
-            # 步驟1: 轉換為 CHW 並正規化到 [0,1]
-            tensor_like = image_array.transpose((2, 0, 1)).astype(np.float32) / 255.0
+            # === 步驟1: 將 numpy array 轉為 PIL Image ===
+            pil_image = Image.fromarray(image_array.astype(np.uint8))
             
-            # 步驟2: ImageNet 正規化
-            means = np.array(IMAGENET_MEAN, dtype=np.float32).reshape(-1, 1, 1)
-            stds = np.array(IMAGENET_STD, dtype=np.float32).reshape(-1, 1, 1)
-            normalized = (tensor_like - means) / stds
+            # === 步驟2: 保持長寬比resize + padding到560x560 ===
+            target_h, target_w = INPUT_SIZE[1], INPUT_SIZE[0]  # INPUT_SIZE 是 (width, height)
             
-            # 步驟3: 調整到模型輸入尺寸 (使用 OpenCV 以匹配原始流程)
-            hwc_normalized = normalized.transpose((1, 2, 0))  # CHW -> HWC for OpenCV
-            resized_hwc = cv2.resize(hwc_normalized, INPUT_SIZE, interpolation=cv2.INTER_LINEAR)
-            resized_chw = resized_hwc.transpose((2, 0, 1))  # HWC -> CHW
+            # 計算保持長寬比的縮放比例
+            original_w, original_h = pil_image.size
+            scale = min(target_w / original_w, target_h / original_h)
+            new_w = int(original_w * scale)
+            new_h = int(original_h * scale)
             
-            # 步驟4: 添加 batch 維度
-            batched = np.expand_dims(resized_chw, axis=0)
+            # 先resize到合適大小（保持長寬比）
+            resized_pil = pil_image.resize((new_w, new_h), Image.BILINEAR)
             
-            return batched
+            # 創建560x560的黑色背景圖片
+            padded_pil = Image.new('RGB', (target_w, target_h), (0, 0, 0))
+            
+            # 計算居中位置
+            paste_x = (target_w - new_w) // 2
+            paste_y = (target_h - new_h) // 2
+            
+            # 將resize後的圖片貼到中心
+            padded_pil.paste(resized_pil, (paste_x, paste_y))
+            resized_pil = padded_pil
+            
+            # === 步驟3: to_tensor ===
+            # PIL Image (H,W,C) uint8 [0,255] → numpy (C,H,W) float32 [0,1]
+            np_img = np.array(resized_pil).astype(np.float32) / 255.0  # [0,1]
+            tensor_img = np.transpose(np_img, (2, 0, 1))  # HWC → CHW
+            
+            # === 步驟4: normalize ===
+            # ImageNet 標準化: normalized = (image - mean) / std
+            means = np.array(IMAGENET_MEAN, dtype=np.float32).reshape(3, 1, 1)
+            stds = np.array(IMAGENET_STD, dtype=np.float32).reshape(3, 1, 1)
+            normalized_img = (tensor_img - means) / stds
+            
+            # === 步驟5: 添加 batch 維度 ===
+            # (C, H, W) → (1, C, H, W)
+            batched = np.expand_dims(normalized_img, axis=0)
+            
+            return batched, resized_pil
             
         except Exception as e:
             logger.error(f"❌ 圖像預處理失敗: {e}")
             raise
         
-    def postprocess_results(self, outputs, original_size: Tuple[int, int]) -> List[Dict]:
-        """模型推理結果後處理，產生標準化檢測結果"""
+    def postprocess_results(self, outputs) -> List[Dict]:
+        """
+        ONNX模型輸出後處理 - 優雅方案實現
+        
+        對比RF-DETR官方實現：
+        - 官方: 全域Top-K搜索（從300×6=1800個值中選Top-100）
+        - 優雅方案: 每位置最高分類 → 閾值過濾 → Top-K選擇
+        
+        優雅方案技術優勢：
+        1. 避免同位置多檢測（符合物理直觀，一個位置只能有一個物體）
+        2. 算法邏輯更清晰直觀，便於理解和維護
+        3. 性能更優，減少不必要的計算開銷
+        4. 結果更符合實際應用場景需求
+        
+        處理流程（按技術規范）：
+        1. 提取模型輸出: pred_boxes (1,300,4), pred_logits (1,300,num_classes)
+        2. Sigmoid激活: logits → confidence scores [0,1]
+        3. 每位置最高分類: 300個位置各選最佳類別（優雅方案核心）
+        4. 閾值過濾: 保留 confidence > CONFIDENCE_THRESHOLD 的檢測
+        5. Top-K選擇: 從過濾結果中選擇前TOP_K個最佳檢測
+        6. 座標轉換: cxcywh → xyxy，縮放到處理後圖像尺寸(560,560)
+        
+        Args:
+            outputs: ONNX Runtime模型輸出列表 [pred_boxes, pred_logits]
+                - pred_boxes: (1,300,4) 邊界框預測，cxcywh格式，歸一化[0,1]
+                - pred_logits: (1,300,num_classes) 類別預測logits
+            處理後圖像尺寸由INPUT_SIZE配置決定，無需外部傳入
+            
+        Returns:
+            List[Dict]: 檢測結果列表，每項包含:
+                - class_id: int, 類別索引(0-based)
+                - class_name: str, 類別名稱（從COCO標註文件獲取）
+                - confidence: float, 信心度分數[0,1]
+                - bbox: List[int], 邊界框[x1,y1,x2,y2]，絕對像素座標
+            
+        技術參考：
+        - legacy/rfdetr_original_spec.md: RF-DETR官方實現細節
+        - legacy/elegant_solution_spec.md: 優雅方案設計理念
+        - docs/01_TECHNICAL_JOURNEY_COMPACT.md: 後處理算法演進
+        """
         try:
-            # 提取預測結果 - 按照 main_legacy.py 的方式
-            pred_boxes, pred_logits = outputs[0][0], outputs[1][0]  # 移除 batch 維度
+            # === 步驟1: 提取模型輸出 ===
+            # 模型輸出格式：[boxes, logits]
+            pred_boxes = outputs[0]   # (1, 300, 4) 邊界框預測
+            pred_logits = outputs[1]  # (1, 300, num_classes) 類別預測
             
-            # Sigmoid 激活
-            prob = 1.0 / (1.0 + np.exp(-pred_logits))
-            
-            # Top-K 選擇
-            prob_flat = prob.reshape(-1)
-            topk_indices = np.argpartition(prob_flat, -TOP_K)[-TOP_K:]
-            topk_indices = topk_indices[np.argsort(prob_flat[topk_indices])[::-1]]
-            
-            scores = prob_flat[topk_indices]
-            topk_boxes = topk_indices // pred_logits.shape[1]
-            labels = topk_indices % pred_logits.shape[1]
-            
-            # 邊界框格式轉換 cxcywh -> xyxy (向量化操作)
-            def box_cxcywh_to_xyxy(boxes):
-                cx, cy, w, h = boxes[:, 0], boxes[:, 1], boxes[:, 2], boxes[:, 3]
-                x1, y1 = cx - 0.5 * w, cy - 0.5 * h
-                x2, y2 = cx + 0.5 * w, cy + 0.5 * h
-                return np.stack([x1, y1, x2, y2], axis=1)
-            
-            boxes_xyxy = box_cxcywh_to_xyxy(pred_boxes)
-            selected_boxes = boxes_xyxy[topk_boxes]
-            
-            # 縮放到原始尺寸
-            img_w, img_h = original_size
-            scale_fct = np.array([img_w, img_h, img_w, img_h])
-            final_boxes = selected_boxes * scale_fct
-            
-            # 應用閾值過濾
-            valid_mask = scores >= CONFIDENCE_THRESHOLD
-            if not np.any(valid_mask):
-                logger.info("ℹ️ 沒有檢測結果超過閾值")
-                return []
-            
-            valid_boxes = final_boxes[valid_mask]
-            valid_confidences = scores[valid_mask]
-            valid_class_ids = labels[valid_mask]
-            
-            # 座標範圍限制
-            valid_boxes[:, [0, 2]] = np.clip(valid_boxes[:, [0, 2]], 0, img_w)
-            valid_boxes[:, [1, 3]] = np.clip(valid_boxes[:, [1, 3]], 0, img_h)
+            # 使用優雅方案的後處理函數（圖像尺寸固定為560×560）
+            detections = self._postprocess_detections(
+                pred_logits, pred_boxes, 
+                threshold=CONFIDENCE_THRESHOLD, 
+                top_k=TOP_K
+            )
             
             # 轉換為 API 輸出格式
             results = []
-            for i in range(len(valid_boxes)):
-                x1, y1, x2, y2 = valid_boxes[i]
+            for i in range(len(detections['xyxy'])):
+                x1, y1, x2, y2 = detections['xyxy'][i]
+                class_id = int(detections['class_id'][i])
+                confidence = float(detections['confidence'][i])
+                
                 results.append({
-                    'class_id': int(valid_class_ids[i]),
-                    'class_name': self.class_names[valid_class_ids[i]] if self.class_names else f'Class_{valid_class_ids[i]}',
-                    'confidence': float(valid_confidences[i]),
+                    'class_id': class_id,
+                    'class_name': self.class_names[class_id] if self.class_names and class_id < len(self.class_names) else f'Class_{class_id}',
+                    'confidence': confidence,
                     'bbox': [int(x1), int(y1), int(x2), int(y2)]
                 })
                     
@@ -155,297 +240,102 @@ class PillDetector:
             logger.error(f"❌ 後處理失敗: {e}")
             return []
             
-    def get_optimal_font(self, font_size: int):
-        """取得最佳可用字體（與 main_legacy.py 相同邏輯）"""
-        font_paths = [
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-            "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
-            "/System/Library/Fonts/Helvetica.ttc",
-            "C:/Windows/Fonts/arialbd.ttf",
-        ]
+    def _postprocess_detections(self, logits, boxes, threshold=0.5, top_k=100):
+        """
+        優雅方案後處理核心實現 - 每位置最高分類策略
         
-        for font_path in font_paths:
-            try:
-                return ImageFont.truetype(font_path, font_size)
-            except:
-                continue
+        與RF-DETR官方後處理器的關鍵差異：
+        - 官方: 全域Top-K (從300×6=1800個分數中選Top-100)
+        - 優雅: 每位置最佳 → 閾值過濾 → Top-K (避免同位置多檢測)
         
-        return ImageFont.load_default()
-
-    def calculate_smart_label_positions(self, detections: List[Dict], image_size: Tuple[int, int], font_size: int) -> List[Optional[Tuple[int, int]]]:
-        """智能計算標籤位置，避免重疊與遮擋（與 main_legacy.py 一致）"""
-        w, h = image_size
+        算法流程（基於技術規範）:
+        1. Sigmoid激活: 將logits轉為[0,1]概率分數
+        2. 每位置最高分類: 300個查詢位置各選最佳類別
+        3. 閾值過濾: 保留信心度 > threshold 的檢測
+        4. 信心度排序: 按分數降序排列
+        5. Top-K選擇: 選擇前K個最佳檢測（默認100個）
+        6. 座標轉換: cxcywh → xyxy，縮放到處理圖像尺寸
         
-        if len(detections) == 0:
-            return []
-        
-        label_height = font_size + 8
-        max_label_width = font_size * 12
-        
-        label_positions = []
-        occupied_regions = []
-        
-        # 按信心度排序
-        sorted_detections = sorted(enumerate(detections), key=lambda x: x[1]['confidence'], reverse=True)
-        
-        for original_idx, det in sorted_detections:
-            bbox = det['bbox']
-            class_name = det['class_name']
-            conf = det['confidence']
+        Args:
+            logits: (1, 300, num_classes) ONNX模型類別預測logits
+            boxes: (1, 300, 4) ONNX模型框預測，cxcywh格式，歸一化[0,1]
+            threshold: float, 信心度閾值，默認0.5
+            top_k: int, 最大檢測數量，默認100
             
-            label_text = f"{class_name} {conf:.2f}"
-            label_width = min(len(label_text) * font_size * 0.6, max_label_width)
+        Note:
+            處理後圖像尺寸由INPUT_SIZE配置決定，座標縮放使用配置值
             
-            x1, y1, x2, y2 = bbox
-            
-            # 候選位置 - 增加更多選項
-            candidates = [
-                # 上方 - 多個位置
-                (x1, y1 - label_height - 5, x1 + label_width, y1 - 5),
-                (x1 + (x2-x1)//4, y1 - label_height - 5, x1 + (x2-x1)//4 + label_width, y1 - 5),
-                (max(0, x2 - label_width), y1 - label_height - 5, x2, y1 - 5),
+        Returns:
+            Dict: 包含以下鍵值的檢測結果字典
+                - 'xyxy': (N,4) numpy array, 絕對像素座標邊界框
+                - 'confidence': (N,) numpy array, 信心度分數[0,1]
+                - 'class_id': (N,) numpy array, 類別索引(0-based)
                 
-                # 下方 - 多個位置  
-                (x1, y2 + 5, x1 + label_width, y2 + 5 + label_height),
-                (x1 + (x2-x1)//4, y2 + 5, x1 + (x2-x1)//4 + label_width, y2 + 5 + label_height),
-                (max(0, x2 - label_width), y2 + 5, x2, y2 + 5 + label_height),
-                
-                # 左側
-                (x1 - label_width - 5, y1, x1 - 5, y1 + label_height),
-                (x1 - label_width - 5, y1 + (y2-y1)//4, x1 - 5, y1 + (y2-y1)//4 + label_height),
-                
-                # 右側
-                (x2 + 5, y1, x2 + 5 + label_width, y1 + label_height),
-                (x2 + 5, y1 + (y2-y1)//4, x2 + 5 + label_width, y1 + (y2-y1)//4 + label_height),
-                
-                # 框內上方
-                (x1 + 5, y1 + 5, x1 + 5 + label_width, y1 + 5 + label_height),
-                # 框內下方
-                (x1 + 5, y2 - label_height - 5, x1 + 5 + label_width, y2 - 5),
-            ]
-            
-            # 找最佳位置
-            best_position = None
-            for pos_x1, pos_y1, pos_x2, pos_y2 in candidates:
-                # 1. 邊界檢查
-                if pos_x1 < 0 or pos_y1 < 0 or pos_x2 > w or pos_y2 > h:
-                    continue
-                
-                # 2. 與其他標籤重疊檢查
-                overlaps_label = False
-                for occupied in occupied_regions:
-                    if not (pos_x2 < occupied[0] or pos_x1 > occupied[2] or 
-                           pos_y2 < occupied[1] or pos_y1 > occupied[3]):
-                        overlaps_label = True
-                        break
-                
-                if overlaps_label:
-                    continue
-                
-                # 3. 檢查是否遮擋其他檢測框
-                blocks_other_boxes = False
-                for other_det in detections:
-                    if other_det == det:  # 跳過自己
-                        continue
-                        
-                    ox1, oy1, ox2, oy2 = other_det['bbox']
-                    
-                    # 計算重疊面積
-                    overlap_x1 = max(pos_x1, ox1)
-                    overlap_y1 = max(pos_y1, oy1)
-                    overlap_x2 = min(pos_x2, ox2)
-                    overlap_y2 = min(pos_y2, oy2)
-                    
-                    if overlap_x1 < overlap_x2 and overlap_y1 < overlap_y2:
-                        overlap_area = (overlap_x2 - overlap_x1) * (overlap_y2 - overlap_y1)
-                        box_area = (ox2 - ox1) * (oy2 - oy1)
-                        
-                        # 如果標籤遮擋其他框超過 20%，則不合適
-                        if overlap_area > box_area * 0.2:
-                            blocks_other_boxes = True
-                            break
-                
-                if not blocks_other_boxes:
-                    best_position = (pos_x1, pos_y1, pos_x2, pos_y2)
-                    break
-            
-            # 備援位置 - 如果都不行，尋找圖像邊緣空白區域
-            if best_position is None:
-                # 嘗試圖像四個角落
-                corner_candidates = [
-                    # 左上角
-                    (5, 5, 5 + label_width, 5 + label_height),
-                    # 右上角  
-                    (w - label_width - 5, 5, w - 5, 5 + label_height),
-                    # 左下角
-                    (5, h - label_height - 5, 5 + label_width, h - 5),
-                    # 右下角
-                    (w - label_width - 5, h - label_height - 5, w - 5, h - 5),
-                ]
-                
-                for pos_x1, pos_y1, pos_x2, pos_y2 in corner_candidates:
-                    # 檢查角落位置是否與已有標籤重疊
-                    corner_overlap = False
-                    for occupied in occupied_regions:
-                        if not (pos_x2 < occupied[0] or pos_x1 > occupied[2] or 
-                               pos_y2 < occupied[1] or pos_y1 > occupied[3]):
-                            corner_overlap = True
-                            break
-                    
-                    if not corner_overlap:
-                        best_position = (pos_x1, pos_y1, pos_x2, pos_y2)
-                        break
-                
-                # 最終備援：強制放在框上方（即使可能重疊）
-                if best_position is None:
-                    pos_x1 = max(5, min(x1, w - label_width - 5))
-                    pos_y1 = max(label_height + 5, y1 - 10)
-                    best_position = (pos_x1, pos_y1, pos_x1 + label_width, pos_y1 + label_height)
-            
-            # 記錄位置
-            label_positions.append((best_position[0], best_position[1] + label_height))
-            occupied_regions.append(best_position)
+        技術特點:
+        - 物理直觀: 一個位置只檢測一個物體（符合現實）
+        - 計算高效: 避免不必要的全域搜索
+        - 邏輯清晰: 步驟明確，易於理解和除錯
+        """
+        # 移除批次維度
+        logits = logits[0]  # (300, num_classes)
+        boxes = boxes[0]    # (300, 4)
         
-        # 重新排序到原始順序
-        final_positions: List[Optional[Tuple[int, int]]] = [None] * len(detections)
-        for i, (original_idx, _) in enumerate(sorted_detections):
-            final_positions[original_idx] = label_positions[i]
+        # 計算信心度（使用 sigmoid）
+        scores = 1 / (1 + np.exp(-logits))  # sigmoid 函數
         
-        return final_positions
-
-    def annotate_image(self, image: Image.Image, detections: List[Dict]) -> Image.Image:
-        """在圖像上標註檢測結果（採用智能標籤定位）"""
-        if not detections:
-            return image
-            
-        # 創建副本以避免修改原圖
-        annotated = image.copy()
-        draw = ImageDraw.Draw(annotated)
+        # 步驟1：每個位置取最高分類（優雅方案核心）
+        max_scores = np.max(scores, axis=1)  # (300,) 每個位置的最高分數
+        max_classes = np.argmax(scores, axis=1)  # (300,) 每個位置的最佳類別
         
-        # 獲取最佳字體
-        font = self.get_optimal_font(FONT_SIZE)
+        # 步驟2：閾值過濾
+        keep_mask = max_scores > threshold
+        if not np.any(keep_mask):
+            return {'xyxy': np.array([]).reshape(0, 4), 'confidence': np.array([]), 'class_id': np.array([])}
+            
+        final_scores = max_scores[keep_mask]
+        final_classes = max_classes[keep_mask]
+        final_boxes = boxes[keep_mask]
         
-        # 計算智能標籤位置
-        label_positions = self.calculate_smart_label_positions(detections, image.size, FONT_SIZE)
+        # 步驟3：Top-K 選擇（在過濾後的結果中選擇）
+        if len(final_scores) > top_k:
+            top_indices = np.argsort(final_scores)[-top_k:]
+            final_scores = final_scores[top_indices]
+            final_classes = final_classes[top_indices]
+            final_boxes = final_boxes[top_indices]
         
-        for i, det in enumerate(detections):
-            bbox = det['bbox']
-            x1, y1, x2, y2 = bbox
-            class_name = det['class_name']
-            confidence = det['confidence']
-            
-            # 選擇顏色
-            color = COLORS[i % len(COLORS)]
-            
-            # 繪製邊界框
-            draw.rectangle([x1, y1, x2, y2], outline=color, width=BOX_THICKNESS)
-            
-            # 準備標籤文字
-            label = f"{class_name} {confidence:.2f}"
-            
-            # 使用智能計算的位置
-            if i < len(label_positions) and label_positions[i] is not None:
-                position = label_positions[i]
-                if position is not None:
-                    text_x, text_y = position
-                    text_y -= FONT_SIZE  # 調整為文字頂部位置
-                else:
-                    # 備援位置
-                    text_x = x1
-                    text_y = y1 - FONT_SIZE - 5
-                    if text_y < 0:
-                        text_y = y1 + 5
-            else:
-                # 備援位置
-                text_x = x1
-                text_y = y1 - FONT_SIZE - 5
-                if text_y < 0:
-                    text_y = y1 + 5
-            
-            # 計算文字尺寸
-            text_bbox = draw.textbbox((0, 0), label, font=font)
-            text_width = text_bbox[2] - text_bbox[0]
-            text_height = text_bbox[3] - text_bbox[1]
-            
-            padding = 4
-            
-            # 繪製標籤背景
-            draw.rectangle(
-                [text_x - padding, text_y - padding, 
-                 text_x + text_width + padding, text_y + text_height + padding],
-                fill=color, outline=color
-            )
-            
-            # 繪製標籤文字
-            draw.text((text_x, text_y), label, fill=(255, 255, 255), font=font)
-            
-        return annotated
-        
-    async def detect_from_url(self, url: str) -> Dict:
-        """從圖片 URL 進行藥丸檢測"""
-        try:
-            # 下載圖像
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
-            
-            # 載入並處理圖像
-            image = Image.open(BytesIO(response.content))
-            return await self._detect_from_image(image)
-            
-        except Exception as e:
-            logger.error(f"❌ URL 檢測失敗: {e}")
-            raise
-            
-    async def detect_from_file(self, file_content: bytes) -> Dict:
-        """從上傳檔案內容進行藥丸檢測"""
-        try:
-            image = Image.open(BytesIO(file_content))
-            return await self._detect_from_image(image)
-            
-        except Exception as e:
-            logger.error(f"❌ 檔案檢測失敗: {e}")
-            raise
-            
-    async def _detect_from_image(self, image: Image.Image) -> Dict:
-        """執行單張圖片的完整檢測流程"""
-        # 轉換為 RGB 模式
-        if image.mode != 'RGB':
-            image = image.convert('RGB')
-            
-        original_size = image.size
-        
-        # 轉換為 numpy 數組
-        image_array = np.array(image)
-        
-        # 預處理 (包含 resize)
-        input_tensor = self.preprocess_image(image_array)
-        
-        # 模型推理
-        input_name = self.onnx_session.get_inputs()[0].name
-        outputs = self.onnx_session.run(None, {input_name: input_tensor})
-        
-        # 後處理
-        detections = self.postprocess_results(outputs, original_size)
-        
-        # 標註圖像
-        annotated_image = self.annotate_image(image, detections)
-        
-        # 轉換為 base64
-        buffer = BytesIO()
-        annotated_image.save(buffer, format='JPEG', quality=95)
-        image_base64 = base64.b64encode(buffer.getvalue()).decode()
+        # 座標轉換: cxcywh → xyxy，並縮放到配置指定的絕對座標
+        xyxy_boxes = CoordinateUtils.cxcywh_to_xyxy(final_boxes)
+        target_size = INPUT_SIZE[0]  # 使用配置中的尺寸（width = height）
+        scaled_boxes = xyxy_boxes * target_size
         
         return {
-            'detections': detections,
-            'annotated_image': f"data:image/jpeg;base64,{image_base64}",
-            'total_detections': len(detections)
+            'xyxy': scaled_boxes,
+            'confidence': final_scores,
+            'class_id': final_classes
         }
+    
         
     def get_classes(self) -> List[str]:
-        """取得所有支援的藥丸類別名稱"""
+        """
+        取得所有支援的藥丸類別名稱
+        
+        從COCO標註文件載入的類別清單，用於API端點 /classes
+        
+        Returns:
+            List[str]: 藥丸類別名稱列表，依照COCO類別ID排序
+                      例如: ['Amoxicillin', 'Diovan 160mg', 'Lansoprazole', ...]
+        """
         return self.class_names or []
         
     def is_ready(self) -> bool:
-        """檢查模型與類別名稱是否載入完成"""
+        """
+        檢查檢測器是否已完成初始化
+        
+        驗證ONNX模型和類別名稱是否都已成功載入，
+        確保檢測器可以正常執行推理任務。
+        
+        Returns:
+            bool: True表示檢測器已就緒，False表示仍在初始化中
+        """
         return self.onnx_session is not None and self.class_names is not None
+    
