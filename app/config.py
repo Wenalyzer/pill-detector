@@ -1,6 +1,6 @@
 """
 藥丸檢測 API 全域設定檔
-優雅方案技術架構：resize → to_tensor → normalize
+技術架構：resize → to_tensor → normalize
 依賴：numpy + Pillow + ONNX Runtime（移除 OpenCV）
 """
 import logging
@@ -8,7 +8,7 @@ import logging
 # API 服務基本設定
 API_TITLE = "💊 藥丸檢測 API"
 API_VERSION = "2.0.0"  # 升級到 2.0 反映架構重構
-API_DESCRIPTION = "AI 藥丸識別服務 - 使用 RF-DETR ONNX 模型進行高精度藥丸檢測"
+API_DESCRIPTION = "AI 藥丸識別服務 - 使用 RF-DETR ONNX 模型進行藥丸檢測"
 
 # 上傳檔案相關設定
 MAX_FILE_SIZE = 25 * 1024 * 1024  # 25MB
@@ -71,8 +71,15 @@ MEMORY_LIMIT_MB = 1024             # 記憶體使用上限（MB）
 
 # 模型推理設定
 ONNX_PROVIDERS = ['CPUExecutionProvider']  # ONNX 執行提供者
-INTER_OP_NUM_THREADS = 0                   # 0=自動檢測CPU核心數
-INTRA_OP_NUM_THREADS = 0                   # 0=自動檢測CPU核心數
+
+# ONNX Runtime 性能優化設定
+INTER_OP_NUM_THREADS = 0                   # 0=自動檢測CPU核心數進行跨節點並行
+INTRA_OP_NUM_THREADS = 0                   # 0=自動檢測CPU核心數進行節點內並行
+GRAPH_OPTIMIZATION_LEVEL = "ORT_ENABLE_BASIC"  # 圖優化級別：基本優化（Cloud Run 快速啟動）
+EXECUTION_MODE = "ORT_PARALLEL"            # 執行模式：並行執行
+ENABLE_MEM_PATTERN = False                 # 關閉內存模式優化（減少啟動時間）
+ENABLE_CPU_MEM_ARENA = True                # 啟用CPU內存池（推理時有效）
+ENABLE_PROFILING = False                   # 啟用性能分析（開發/調試用）
 
 # 錯誤處理設定
 MAX_RETRY_ATTEMPTS = 3             # 最大重試次數

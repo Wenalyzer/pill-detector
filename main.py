@@ -1,7 +1,7 @@
 """
 藥丸檢測 API - 主應用
-使用優雅的 Pillow 預處理流程，完全匹配原始 predict 方法結果
-OpenCV 依賴已移除，僅使用 numpy + Pillow 實現高精度檢測
+使用 Pillow 預處理流程，基於 RF-DETR ONNX 模型
+OpenCV 依賴已移除，使用 numpy + Pillow 實現
 """
 import logging
 from contextlib import asynccontextmanager
@@ -20,8 +20,8 @@ from app.detection_service import DetectionService
 
 # 設置日誌
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=LOG_LEVEL,
+    format=LOG_FORMAT
 )
 logger = logging.getLogger(__name__)
 

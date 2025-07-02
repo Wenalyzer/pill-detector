@@ -16,5 +16,5 @@ pillow==11.2.1
 requests==2.32.4
 python-multipart==0.0.20
 
-# 速率限制 (精簡版)
+# 速率限制
 slowapi==0.1.9

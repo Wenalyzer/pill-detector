@@ -4,13 +4,15 @@ import time
 import base64
 from PIL import Image
 import io
+import os
 
 def test_api_comprehensive():
-    """全面測試 API"""
+    """全面測試藥丸檢測 API"""
     
-    base_url = "https://pill-detector-23010935669.us-central1.run.app" # 替換為你的 API URL
+    # 使用本地端點進行測試
+    base_url = "http://localhost:8000"
     
-    print("🚀 開始測試藥丸辨識 API")
+    print("🚀 開始測試藥丸檢測 API")
     print("=" * 50)
     
     # 1. 測試連接
@@ -24,6 +26,7 @@ def test_api_comprehensive():
             return
     except Exception as e:
         print(f"   ❌ 連接失敗: {e}")
+        print(f"   💡 提示: 請先啟動 API 服務 (python main.py)")
         return
     
     # 2. 測試健康檢查
@@ -33,74 +36,173 @@ def test_api_comprehensive():
         health_data = response.json()
         print(f"   ✅ 健康狀態: {health_data}")
         
-        if not health_data.get("model_loaded", False):
-            print("   ⚠️ 模型未載入，請檢查模型檔案")
+        if not health_data.get("service_ready", False):
+            print("   ⚠️ 服務未就緒，請檢查模型檔案和初始化狀態")
+            print("   💡 提示: 執行 python scripts/download_model.py 下載模型")
             return
     except Exception as e:
         print(f"   ❌ 健康檢查失敗: {e}")
         return
     
-    # 3. 測試偵測功能
-    print("\n3️⃣ 測試藥丸偵測...")
+    # 3. 測試檔案上傳檢測
+    print("\n3️⃣ 測試檔案上傳檢測...")
+    test_image_path = "tests/image.jpg"
     
-    # 使用測試圖片 URL
-    test_image_urls = [
-        "https://i.postimg.cc/fRrjZ0DK/IMG-1237-JPG-rf-65888afb7f3a5acce6b2cfa2106a9040.jpg"
-    ]
-    
-    for i, image_url in enumerate(test_image_urls):
-        print(f"\n   📸 測試圖片 {i+1}: {image_url}")
-        
+    if os.path.exists(test_image_path):
         try:
-            start_time = time.time()
+            start_time = time.perf_counter()
             
-            test_data = {
-                "image_url": image_url,
-                "threshold": 0.5
-            }
+            with open(test_image_path, "rb") as f:
+                files = {"file": ("test_image.jpg", f, "image/jpeg")}
+                response = requests.post(
+                    f"{base_url}/detect",
+                    files=files,
+                    timeout=60
+                )
             
-            response = requests.post(
-                f"{base_url}/detect",
-                json=test_data,
-                timeout=60
-            )
-            
-            total_time = time.time() - start_time
+            total_time = time.perf_counter() - start_time
             
             if response.status_code == 200:
                 result = response.json()
-                print(f"   ✅ 偵測成功!")
-                print(f"   📊 偵測到 {len(result['detections'])} 個物件")
-                print(f"   ⚡ 推論時間: {result['inference_time_ms']}ms")
-                print(f"   🌐 總請求時間: {total_time*1000:.1f}ms")
+                print(f"   ✅ 檔案上傳檢測成功!")
+                display_detection_results(result, total_time)
                 
-                # 顯示偵測結果
-                for detection in result['detections']:
-                    print(f"      🔍 Pill {detection['pill_name']}: "
-                          f"信心度 {detection['confidence']:.3f}")
-                
-                # 可選：儲存標註圖片
-                if result.get('annotated_image_base64'):
-                    save_annotated_image(result['annotated_image_base64'], f"result_{i+1}.jpg")
+                # 儲存標註圖片
+                data = result.get('data', result)
+                annotated_image = data.get('annotated_image', data.get('annotated_image_base64', ''))
+                if annotated_image:
+                    # 移除 data:image/jpeg;base64, 前綴
+                    if annotated_image.startswith('data:image/'):
+                        annotated_image = annotated_image.split(',', 1)[-1]
+                    save_annotated_image(annotated_image, "result_file_upload.jpg")
                     
             else:
-                print(f"   ❌ 偵測失敗: {response.status_code}")
+                print(f"   ❌ 檔案上傳檢測失敗: {response.status_code}")
                 print(f"   📄 錯誤訊息: {response.text}")
                 
         except Exception as e:
-            print(f"   ❌ 請求失敗: {e}")
+            print(f"   ❌ 檔案上傳測試失敗: {e}")
+    else:
+        print(f"   ⚠️ 測試圖片不存在: {test_image_path}")
+    
+    # 4. 測試 URL 檢測
+    print("\n4️⃣ 測試 URL 檢測...")
+    
+    # 使用測試圖片 URL
+    test_image_url = "https://i.postimg.cc/fRrjZ0DK/IMG-1237-JPG-rf-65888afb7f3a5acce6b2cfa2106a9040.jpg"
+    
+    try:
+        start_time = time.perf_counter()
+        
+        # 使用 Form 參數格式 (修正後的格式)
+        data = {"image_url": test_image_url}
+        response = requests.post(
+            f"{base_url}/detect",
+            data=data,
+            timeout=60
+        )
+        
+        total_time = time.perf_counter() - start_time
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"   ✅ URL 檢測成功!")
+            display_detection_results(result, total_time)
+            
+            # 儲存標註圖片
+            data = result.get('data', result)
+            annotated_image = data.get('annotated_image', data.get('annotated_image_base64', ''))
+            if annotated_image:
+                # 移除 data:image/jpeg;base64, 前綴
+                if annotated_image.startswith('data:image/'):
+                    annotated_image = annotated_image.split(',', 1)[-1]
+                save_annotated_image(annotated_image, "result_url_detection.jpg")
+                
+        else:
+            print(f"   ❌ URL 檢測失敗: {response.status_code}")
+            print(f"   📄 錯誤訊息: {response.text}")
+            
+    except Exception as e:
+        print(f"   ❌ URL 檢測測試失敗: {e}")
+    
+    # 5. 測試錯誤處理
+    print("\n5️⃣ 測試錯誤處理...")
+    test_error_cases(base_url)
     
     print(f"\n✅ API 測試完成")
 
+def display_detection_results(result, total_time):
+    """顯示檢測結果"""
+    # 處理 API 回應格式：result.data.detections
+    data = result.get('data', result)  # 兼容新舊格式
+    detections = data.get('detections', [])
+    
+    print(f"   📊 檢測到 {len(detections)} 個藥丸")
+    if 'inference_time_ms' in data:
+        print(f"   ⚡ 推理時間: {data['inference_time_ms']}ms")
+    print(f"   🌐 總請求時間: {total_time*1000:.1f}ms")
+    
+    # 顯示檢測結果詳情
+    for i, detection in enumerate(detections, 1):
+        pill_name = detection.get('class_name', detection.get('pill_name', 'Unknown'))
+        confidence = detection.get('confidence', 0)
+        print(f"      🔍 藥丸 {i}: {pill_name} "
+              f"(信心度: {confidence:.3f})")
+
+def test_error_cases(base_url):
+    """測試錯誤處理情況"""
+    
+    # 測試無效 URL
+    print("   📋 測試無效 URL...")
+    try:
+        data = {"image_url": "https://invalid-url-that-does-not-exist.com/image.jpg"}
+        response = requests.post(f"{base_url}/detect", data=data, timeout=30)
+        if response.status_code != 200:
+            print(f"   ✅ 無效 URL 錯誤處理正常: {response.status_code}")
+        else:
+            print(f"   ⚠️ 無效 URL 未正確處理")
+    except:
+        print(f"   ✅ 無效 URL 請求超時，錯誤處理正常")
+    
+    # 測試空請求
+    print("   📋 測試空請求...")
+    try:
+        response = requests.post(f"{base_url}/detect", timeout=10)
+        if response.status_code in [400, 422]:  # FastAPI 驗證錯誤或 Bad Request
+            print(f"   ✅ 空請求錯誤處理正常: {response.status_code}")
+        else:
+            print(f"   ⚠️ 空請求處理異常: {response.status_code}")
+    except Exception as e:
+        print(f"   ❌ 空請求測試失敗: {e}")
+
 def save_annotated_image(base64_string, filename):
-    """儲存 base64 圖片"""
+    """儲存 base64 標註圖片"""
     try:
         image_data = base64.b64decode(base64_string)
         image = Image.open(io.BytesIO(image_data))
-        image.save(filename)
-        print(f"   💾 標註圖片已儲存: {filename}")
+        
+        # 確保 tests 目錄存在
+        output_path = f"tests/{filename}"
+        image.save(output_path)
+        print(f"   💾 標註圖片已儲存: {output_path}")
     except Exception as e:
         print(f"   ⚠️ 儲存圖片失敗: {e}")
 
+def test_web_interface():
+    """測試網頁介面可用性"""
+    base_url = "http://localhost:8000"
+    
+    print("\n🌐 測試網頁介面...")
+    try:
+        response = requests.get(f"{base_url}/test", timeout=10)
+        if response.status_code == 200:
+            print("   ✅ 測試介面可存取")
+            print(f"   🔗 請訪問: {base_url}/test")
+        else:
+            print(f"   ❌ 測試介面無法存取: {response.status_code}")
+    except Exception as e:
+        print(f"   ❌ 測試介面檢查失敗: {e}")
+
 if __name__ == "__main__":
     test_api_comprehensive()
+    test_web_interface()

@@ -1,6 +1,6 @@
 """
 藥丸檢測應用模組
-優雅的 Pillow 解決方案，完全匹配原始 predict 方法
+Pillow 預處理實現，基於 RF-DETR ONNX 模型
 """
 
 from .pill_detector import PillDetector

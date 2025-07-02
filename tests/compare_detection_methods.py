@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-比較純數學方案和優雅方案在實際圖片上的檢測結果
+比較純數學方案和Pillow方案在實際圖片上的檢測結果
 
 純數學方案：按照 pure_math_spec.md 實現，只使用 numpy 數學運算
-優雅方案：當前主流程實現，resize → to_tensor → normalize
+Pillow方案：當前主流程實現，resize → to_tensor → normalize
 """
 import numpy as np
 import sys
@@ -179,7 +179,7 @@ class TestPillDetector:
             if input_tensor is None:
                 raise ValueError("純數學前處理失敗")
         else:  # elegant
-            # 優雅方案：調用主流程前處理
+            # Pillow方案：調用主流程前處理
             input_tensor = self.detector.preprocess_image(image_array)
         
         # 模型推理
@@ -195,7 +195,7 @@ class TestPillDetector:
                 threshold=0.5, top_k=30
             )
         else:  # elegant
-            # 優雅方案：調用主流程後處理
+            # Pillow方案：調用主流程後處理
             detections = self.detector._postprocess_detections(
                 outputs[1], outputs[0], 
                 original_size[1], original_size[0], 
@@ -226,9 +226,9 @@ class TestPillDetector:
         """比較兩種前處理方法的差異"""
         print("🔧 比較前處理方法...")
         print("  🎯 純數學方案: to_tensor → normalize → resize（純數學雙線性插值）")
-        print("  ✨ 優雅方案: resize → to_tensor → normalize（PIL 在像素域操作）")
+        print("  ✨ Pillow方案: resize → to_tensor → normalize（PIL 在像素域操作）")
         
-        # 優雅方案前處理 (當前主流程使用)
+        # Pillow方案前處理 (當前主流程使用)
         elegant_tensor = self.detector.preprocess_image(image_array)
         
         # 純數學方案前處理 (pure_math_spec.md 實現)
@@ -239,7 +239,7 @@ class TestPillDetector:
             return elegant_tensor, None, None
         
         # 比較結果
-        print(f"  優雅方案輸出形狀: {elegant_tensor.shape}")
+        print(f"  Pillow方案輸出形狀: {elegant_tensor.shape}")
         print(f"  純數學方案輸出形狀: {pure_math_tensor.shape}")
         
         diff = np.abs(elegant_tensor - pure_math_tensor)
@@ -248,7 +248,7 @@ class TestPillDetector:
         
         print(f"  最大差異: {max_diff:.6f}")
         print(f"  平均差異: {mean_diff:.6f}")
-        print(f"  數值範圍 (優雅): [{elegant_tensor.min():.3f}, {elegant_tensor.max():.3f}]")
+        print(f"  數值範圍 (Pillow): [{elegant_tensor.min():.3f}, {elegant_tensor.max():.3f}]")
         print(f"  數值範圍 (純數學): [{pure_math_tensor.min():.3f}, {pure_math_tensor.max():.3f}]")
         
         if max_diff < 1e-4:
@@ -262,22 +262,22 @@ class TestPillDetector:
         return elegant_tensor, pure_math_tensor, max_diff
     
     def verify_main_pipeline_is_elegant(self):
-        """驗證主流程確實使用優雅方案"""
+        """驗證主流程確實使用Pillow方案"""
         print("🔍 驗證主流程實現...")
         
         # 檢查前處理方法
         preprocess_code = self.detector.preprocess_image.__doc__ or ""
         if "resize → to_tensor → normalize" in preprocess_code:
-            print("  ✅ 主流程前處理確實是優雅方案")
+            print("  ✅ 主流程前處理確實是Pillow方案")
         else:
-            print("  ❌ 主流程前處理可能不是優雅方案")
+            print("  ❌ 主流程前處理可能不是Pillow方案")
             
         # 檢查後處理方法
         postprocess_code = self.detector._postprocess_detections.__doc__ or ""
         if "優雅方案" in postprocess_code:
-            print("  ✅ 主流程後處理確實是優雅方案")
+            print("  ✅ 主流程後處理確實是Pillow方案")
         else:
-            print("  ❌ 主流程後處理可能不是優雅方案")
+            print("  ❌ 主流程後處理可能不是Pillow方案")
             
         print("  💡 主流程調用:")
         print("    - 前處理: self.detector.preprocess_image()")
@@ -285,7 +285,7 @@ class TestPillDetector:
 
 async def compare_detection_methods():
     """比較兩種檢測方法在實際圖片上的效果"""
-    print("🔬 比較純數學方案 vs 優雅方案 - 五張實際圖片檢測")
+    print("🔬 比較純數學方案 vs Pillow方案 - 五張實際圖片檢測")
     print("=" * 70)
     
     # 初始化檢測器
@@ -299,7 +299,7 @@ async def compare_detection_methods():
     print("✅ 檢測器初始化成功")
     print(f"📋 支援類別: {detector.get_classes()}")
     
-    # 驗證主流程確實使用優雅方案
+    # 驗證主流程確實使用Pillow方案
     print(f"\n🔍 主流程實現驗證")
     print("-"*50)
     detector.verify_main_pipeline_is_elegant()
@@ -356,11 +356,11 @@ async def compare_detection_methods():
                 for j, det in enumerate(result_pure['detections'], 1):
                     print(f"    {j}. {det['class_name']} (信心度: {det['confidence']:.3f})")
             
-            # 優雅方案檢測
+            # Pillow方案檢測
             result_elegant = await detector.detect_with_method(image_content, method='elegant')
             all_elegant_results.append(result_elegant)
             
-            print(f"  ✨ 優雅方案: {result_elegant['total_detections']} 個檢測")
+            print(f"  ✨ Pillow方案: {result_elegant['total_detections']} 個檢測")
             if result_elegant['detections']:
                 for j, det in enumerate(result_elegant['detections'], 1):
                     print(f"    {j}. {det['class_name']} (信心度: {det['confidence']:.3f})")
@@ -379,7 +379,7 @@ async def compare_detection_methods():
     
     print(f"📈 檢測數量統計:")
     print(f"  純數學方案總檢測數: {total_pure}")
-    print(f"  優雅方案總檢測數: {total_elegant}")
+    print(f"  Pillow方案總檢測數: {total_elegant}")
     print(f"  差異: {abs(total_pure - total_elegant)}")
     
     # 平均信心度分析
@@ -398,11 +398,11 @@ async def compare_detection_methods():
         
         print(f"\n🎯 信心度分析:")
         print(f"  純數學方案平均信心度: {pure_avg_conf:.3f}")
-        print(f"  優雅方案平均信心度: {elegant_avg_conf:.3f}")
+        print(f"  Pillow方案平均信心度: {elegant_avg_conf:.3f}")
         print(f"  信心度差異: {abs(pure_avg_conf - elegant_avg_conf):.3f}")
         
         print(f"  純數學方案最高信心度: {max(all_pure_confidences):.3f}")
-        print(f"  優雅方案最高信心度: {max(all_elegant_confidences):.3f}")
+        print(f"  Pillow方案最高信心度: {max(all_elegant_confidences):.3f}")
     
     # 檢測到的藥丸類別比較
     print(f"\n💊 檢測藥丸類別分析:")
@@ -420,7 +420,7 @@ async def compare_detection_methods():
         if only_pure:
             print(f"    僅純數學檢測到: {list(only_pure)}")
         if only_elegant:
-            print(f"    僅優雅方案檢測到: {list(only_elegant)}")
+            print(f"    僅Pillow方案檢測到: {list(only_elegant)}")
         
         if pure_classes == elegant_classes:
             print(f"    ✅ 兩方案檢測類別完全一致")
@@ -429,11 +429,11 @@ async def compare_detection_methods():
     
     print(f"\n🎯 總結:")
     print(f"  - 純數學方案總共檢測到 {total_pure} 個藥丸")
-    print(f"  - 優雅方案總共檢測到 {total_elegant} 個藥丸")
+    print(f"  - Pillow方案總共檢測到 {total_elegant} 個藥丸")
     if all_pure_confidences and all_elegant_confidences:
         print(f"  - 純數學方案平均信心度: {np.mean(all_pure_confidences):.3f}")
-        print(f"  - 優雅方案平均信心度: {np.mean(all_elegant_confidences):.3f}")
-    print(f"  - 優雅方案代碼更簡潔，避免同位置多類別問題")
+        print(f"  - Pillow方案平均信心度: {np.mean(all_elegant_confidences):.3f}")
+    print(f"  - Pillow方案代碼更簡潔，避免同位置多類別問題")
 
 if __name__ == "__main__":
     asyncio.run(compare_detection_methods())

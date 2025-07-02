@@ -13,7 +13,7 @@ from PIL import Image
 
 from .pill_detector import PillDetector
 from .image_annotator import ImageAnnotator
-from .config import REQUEST_TIMEOUT, OUTPUT_IMAGE_FORMAT, OUTPUT_IMAGE_QUALITY
+from .config import *
 
 logger = logging.getLogger(__name__)
 
@@ -64,19 +64,19 @@ class DetectionService:
         Raises:
             HTTPException: 網路錯誤或檢測失敗
         """
-        start_time = time.time()
+        start_time = time.perf_counter()
         try:
             logger.info(f"🔍 開始 URL 檢測: {url}")
             
             # 下載圖像
-            download_start = time.time()
+            download_start = time.perf_counter()
             image = await self._download_image_from_url(url)
-            download_time = time.time() - download_start
+            download_time = time.perf_counter() - download_start
             
             # 執行檢測
             result = await self._detect_and_annotate(image)
             
-            total_time = time.time() - start_time
+            total_time = time.perf_counter() - start_time
             logger.info(f"✅ URL 檢測完成: {result['total_detections']} 個藥丸 | "
                        f"下載: {download_time:.2f}s | 總時間: {total_time:.2f}s")
             return result
@@ -99,20 +99,20 @@ class DetectionService:
         Raises:
             HTTPException: 檔案處理錯誤或檢測失敗
         """
-        start_time = time.time()
+        start_time = time.perf_counter()
         try:
             file_size_mb = len(file_content) / (1024 * 1024)
             logger.info(f"🔍 開始檔案檢測: {filename} ({file_size_mb:.1f}MB)")
             
             # 載入圖像
-            load_start = time.time()
+            load_start = time.perf_counter()
             image = await self._load_image_from_bytes(file_content)
-            load_time = time.time() - load_start
+            load_time = time.perf_counter() - load_start
             
             # 執行檢測
             result = await self._detect_and_annotate(image)
             
-            total_time = time.time() - start_time
+            total_time = time.perf_counter() - start_time
             logger.info(f"✅ 檔案檢測完成: {result['total_detections']} 個藥丸 | "
                        f"載入: {load_time:.2f}s | 總時間: {total_time:.2f}s")
             return result
@@ -193,7 +193,7 @@ class DetectionService:
     
     async def _detect_and_annotate(self, image: Image.Image) -> Dict:
         """執行檢測和標註的核心邏輯"""
-        start_time = time.time()
+        start_time = time.perf_counter()
         try:
             logger.debug(f"🖼️ 處理圖像尺寸: {image.size}")
             
@@ -201,11 +201,11 @@ class DetectionService:
             detections, processed_image, inference_time, preprocess_time, postprocess_time = await self._perform_detection(image)
             
             # 執行標註（座標和圖片完全匹配）
-            annotation_start = time.time()
+            annotation_start = time.perf_counter()
             annotated_image, label_areas = self.annotator.annotate_image(processed_image, detections)
-            annotation_time = time.time() - annotation_start
+            annotation_time = time.perf_counter() - annotation_start
             
-            total_time = time.time() - start_time
+            total_time = time.perf_counter() - start_time
             logger.info(f"⚡ 預處理: {preprocess_time:.2f}s | 推理: {inference_time:.2f}s | "
                        f"後處理: {postprocess_time:.2f}s | 標註: {annotation_time:.2f}s | 總計: {total_time:.2f}s")
             
@@ -236,19 +236,28 @@ class DetectionService:
         image_array = np.array(image)
         
         # 預處理（返回tensor和處理後的圖片）
-        preprocess_start = time.time()
+        preprocess_start = time.perf_counter()
         input_tensor, processed_image = self.detector.preprocess_image(image_array)
-        preprocess_time = time.time() - preprocess_start
+        preprocess_time = time.perf_counter() - preprocess_start
         
         # 模型推理
-        inference_start = time.time()
+        inference_start = time.perf_counter()
         outputs = self.detector.onnx_session.run(None, {self._onnx_input_name: input_tensor})
-        inference_time = time.time() - inference_start
+        inference_time = time.perf_counter() - inference_start
+        
+        # 性能分析報告（如果啟用）
+        if hasattr(self.detector, 'onnx_session') and self.detector.onnx_session:
+            try:
+                prof_file = self.detector.onnx_session.end_profiling()
+                if prof_file:
+                    logger.debug(f"🔍 ONNX 性能分析報告: {prof_file}")
+            except:
+                pass  # 如果沒有啟用 profiling，忽略錯誤
         
         # 後處理（圖像已統一為INPUT_SIZE配置尺寸，無需傳遞尺寸）
-        postprocess_start = time.time()
+        postprocess_start = time.perf_counter()
         detections = self.detector.postprocess_results(outputs)
-        postprocess_time = time.time() - postprocess_start
+        postprocess_time = time.perf_counter() - postprocess_start
         
         logger.debug(f"🎯 檢測到 {len(detections)} 個目標")
         return detections, processed_image, inference_time, preprocess_time, postprocess_time

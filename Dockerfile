@@ -54,5 +54,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=2 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# 優化的 ASGI 啟動
+# Cloud Run 優化的 ASGI 啟動
 CMD ["python", "uvicorn.prod.py"]

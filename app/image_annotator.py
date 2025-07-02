@@ -6,7 +6,7 @@ import logging
 from typing import List, Dict, Optional, Tuple
 from PIL import Image, ImageDraw
 
-from .config import FONT_SIZE, COLORS, BOX_THICKNESS
+from .config import *
 from .utils.font_utils import get_font
 
 logger = logging.getLogger(__name__)
@@ -16,8 +16,8 @@ class ImageAnnotator:
     """
     圖像標註器 - 專注於檢測結果可視化
     
-    核心功能：
-    - 智能標籤位置計算
+    主要功能：
+    - 標籤位置計算
     - 圖像標註繪製
     - 避免標籤重疊和遮擋
     """
