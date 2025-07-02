@@ -2,7 +2,7 @@ name: 🚀 藥丸檢測 API - 建置與測試
 
 on:
   push:
-    branches: [main, 'feature/*'] 
+    branches: [main, 'feature-*'] 
     paths-ignore: 
       - 'docs/**'
       - '*.md'
