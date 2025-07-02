@@ -21,6 +21,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      security-events: write
     
     steps:
     - name: Checkout code
@@ -75,7 +76,7 @@ jobs:
         
     - name: 📊 上傳安全掃描到 GitHub Security
       uses: github/codeql-action/upload-sarif@v3
-      if: always() && github.ref == 'refs/heads/main'  # 只有 main 分支上傳到 Security 頁面
+      if: always()  # 所有分支都上傳安全掃描結果
       with:
         sarif_file: 'trivy-results.sarif'
     

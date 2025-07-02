@@ -32,7 +32,7 @@
 python scripts/download_model.py
 
 # 或從 GitHub Releases 手動下載
-# https://github.com/YOUR_REPO/releases/latest
+# https://github.com/Wenalyzer/pill-detector/releases
 ```
 
 ### 本地開發
@@ -144,8 +144,6 @@ open http://localhost:8000/test
 - 📊 **架構實現**: 模組化設計
 
 ## 📚 文檔導引
-
-> 💡 **快速導航**: [🏗️ 系統架構圖](docs/architecture/request_flow.png)
 
 ### 📖 使用指南
 - **[API 使用指南](docs/guides/API_GUIDE.md)** - 完整的端點使用說明和範例
