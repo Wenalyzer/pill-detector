@@ -33,7 +33,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip safety
         echo "🔍 檢查 Python 套件漏洞..."
-        if ! safety check -r requirements.txt --json --output safety-report.json; then
+        if ! safety check -r requirements.txt --output json > safety-report.json; then
           echo "⚠️ 發現安全漏洞，詳見報告"
           # 不讓 CI 失敗，但會在報告中顯示
         fi
@@ -76,7 +76,7 @@ jobs:
         cache-to: type=gha,mode=max
     
     - name: 🛡️ 容器安全掃描 (Trivy)
-      uses: aquasecurity/trivy-action@master
+      uses: aquasecurity/trivy-action@0.64.0
       with:
         image-ref: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
         format: 'sarif'
@@ -116,6 +116,10 @@ jobs:
           docker logs test-container
           exit 1
         fi
+        
+        # 顯示容器日誌（用於調試）
+        echo "📋 Container logs:"
+        docker logs test-container
         
         # 健康檢查
         echo "🔍 Testing health endpoint..."

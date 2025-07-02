@@ -80,7 +80,7 @@ async def root(request: Request):
     detection_service = request.app.state.detection_service
     return {
         "message": "藥丸檢測 API",
-        "version": API_VERSION,
+        "version": __version__,
         "status": "running",
         "supported_classes": detection_service.get_classes() if detection_service and detection_service.is_ready() else [],
         "endpoints": ["/health", "/detect", "/test"]
