@@ -54,7 +54,7 @@ jobs:
       uses: docker/build-push-action@v5
       with:
         context: .
-        push: true  # 所有分支都推送，但標籤不同
+        push: ${{ github.ref == 'refs/heads/main' }}  # 只有main分支推送到registry
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha

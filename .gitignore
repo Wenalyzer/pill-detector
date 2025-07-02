@@ -85,26 +85,9 @@ htmlcov/
 .pytest_cache/
 .tox/
 
-# Docker
-.dockerignore
-
 # 執行時檔案
 *.pid
 *.sock
-
-# 開發工具配置
-.editorconfig
-.flake8
-.pylintrc
-pyproject.toml
-setup.cfg
-tox.ini
-
-# CI/CD (如果使用的話)
-.github/
-.gitlab-ci.yml
-.travis.yml
-.circleci/
 
 models/*.onnx
 models/*.bin

@@ -1,0 +1,98 @@
+name: 🚀 多環境部署
+
+on:
+  push:
+    branches:
+      - main 
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '選擇部署環境'  
+        required: true
+        default: 'production'
+        type: choice
+        options:
+        - production
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: wenalyzer/pill-detector
+
+jobs:
+  determine-environment:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+      deploy_url: ${{ steps.env.outputs.deploy_url }}
+    
+    steps:
+    - name: 🎯 決定部署環境
+      id: env
+      run: |
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          ENVIRONMENT="${{ github.event.inputs.environment }}"
+        elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+          ENVIRONMENT="production"
+        else
+          echo "❌ 未支援的分支，跳過部署"
+          exit 1
+        fi
+        
+        echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
+        
+        # 設定個人伺服器部署
+        echo "deploy_url=https://detect-api-self.wenalyzer.xyz" >> $GITHUB_OUTPUT
+        echo "deploy_type=personal-server" >> $GITHUB_OUTPUT
+
+  deploy:
+    needs: determine-environment
+    runs-on: self-hosted  # 在你的個人伺服器上執行部署
+    environment: ${{ needs.determine-environment.outputs.environment }}
+    
+    steps:
+    - name: 📦 部署到 ${{ needs.determine-environment.outputs.environment }}
+      run: |
+        echo "🚀 部署到環境: ${{ needs.determine-environment.outputs.environment }}"
+        echo "🌐 部署 URL: ${{ needs.determine-environment.outputs.deploy_url }}"
+        echo "🏷️ 映像標籤: latest"
+        
+        echo "🏠 部署到個人伺服器..."
+        # 使用 self-hosted runner，直接在伺服器上執行
+        docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        docker stop pill-detector-main || true
+        docker rm pill-detector-main || true
+        docker run -d --name pill-detector-main -p 8000:8000 \
+          --restart unless-stopped \
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        echo "✅ 個人伺服器部署完成"
+    
+    - name: 🔍 部署後健康檢查
+      run: |
+        echo "⏳ 等待服務啟動..."
+        sleep 30
+        
+        # 健康檢查
+        HEALTH_URL="${{ needs.determine-environment.outputs.deploy_url }}/health"
+        echo "🩺 檢查健康狀態: $HEALTH_URL"
+        
+        # 實際健康檢查
+        if ! curl -f $HEALTH_URL; then
+          echo "❌ 健康檢查失敗"
+          exit 1
+        fi
+        echo "✅ 健康檢查通過"
+        echo "📝 Note: git tag 會自動觸發 Cloud Run 部署"
+    
+    - name: 📊 部署摘要
+      run: |
+        echo "## 🚀 部署摘要" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **環境**: ${{ needs.determine-environment.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **分支**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **提交**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **服務 URL**: ${{ needs.determine-environment.outputs.deploy_url }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🧪 快速測試" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+        echo "curl ${{ needs.determine-environment.outputs.deploy_url }}/health" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
