@@ -76,7 +76,7 @@ jobs:
         cache-to: type=gha,mode=max
     
     - name: 🛡️ 容器安全掃描 (Trivy)
-      uses: aquasecurity/trivy-action@0.64.0
+      uses: aquasecurity/trivy-action@master
       with:
         image-ref: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
         format: 'sarif'
