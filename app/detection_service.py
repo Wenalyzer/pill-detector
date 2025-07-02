@@ -166,11 +166,14 @@ class DetectionService:
             return image
             
         except requests.RequestException as e:
-            raise Exception(f"圖像下載失敗: {e}")
+            logger.error(f"圖像下載失敗: {e}", exc_info=True)
+            raise Exception("圖像下載失敗")
         except (IOError, OSError) as e:
-            raise Exception(f"圖像載入失敗: {e}")
+            logger.error(f"圖像載入失敗: {e}", exc_info=True)
+            raise Exception("圖像格式不支援或已損壞")
         except Exception as e:
-            raise Exception(f"圖像處理未知錯誤: {e}")
+            logger.error(f"圖像處理未知錯誤: {e}", exc_info=True)
+            raise Exception("圖像處理失敗")
     
     async def _load_image_from_bytes(self, file_content: bytes) -> Image.Image:
         """從字節內容載入圖像"""
@@ -187,9 +190,11 @@ class DetectionService:
             return image
             
         except (IOError, OSError) as e:
-            raise Exception(f"檔案圖像載入失敗: {e}")
+            logger.error(f"檔案圖像載入失敗: {e}", exc_info=True)
+            raise Exception("上傳的檔案格式不支援或已損壞")
         except Exception as e:
-            raise Exception(f"檔案處理未知錯誤: {e}")
+            logger.error(f"檔案處理未知錯誤: {e}", exc_info=True)
+            raise Exception("檔案處理失敗")
     
     async def _detect_and_annotate(self, image: Image.Image) -> Dict:
         """執行檢測和標註的核心邏輯"""
@@ -221,14 +226,14 @@ class DetectionService:
             }
             
         except (IOError, OSError) as e:
-            logger.error(f"❌ 圖像處理失敗: {e}")
-            raise Exception(f"圖像處理失敗: {e}")
+            logger.error(f"❌ 圖像處理失敗: {e}", exc_info=True)
+            raise Exception("圖像處理失敗")
         except RuntimeError as e:
-            logger.error(f"❌ 模型推理失敗: {e}")
-            raise Exception(f"模型推理失敗: {e}")
+            logger.error(f"❌ 模型推理失敗: {e}", exc_info=True)
+            raise Exception("模型推理失敗")
         except Exception as e:
-            logger.error(f"❌ 檢測和標註失敗: {e}")
-            raise
+            logger.error(f"❌ 檢測和標註失敗: {e}", exc_info=True)
+            raise Exception("檢測服務內部錯誤")
     
     async def _perform_detection(self, image: Image.Image) -> Tuple[list, Image.Image, float, float, float]:
         """執行檢測，返回檢測結果、處理後的圖片和時間統計"""

@@ -17,6 +17,7 @@ from pydantic import BaseModel, HttpUrl
 
 from app.config import *
 from app.detection_service import DetectionService
+from app import __version__
 
 # 設置日誌
 logging.basicConfig(
@@ -24,8 +25,6 @@ logging.basicConfig(
     format=LOG_FORMAT
 )
 logger = logging.getLogger(__name__)
-
-# 移除全域變數，改用 FastAPI 的狀態管理
 
 # 速率限制器
 limiter = Limiter(key_func=get_remote_address)
@@ -58,7 +57,7 @@ async def lifespan(app: FastAPI):
 # 創建 FastAPI 應用
 app = FastAPI(
     title=API_TITLE,
-    version=API_VERSION,
+    version=__version__,
     description=API_DESCRIPTION,
     lifespan=lifespan
 )
@@ -153,8 +152,8 @@ async def detect_pills(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ 檢測失敗: {e}")
-        raise HTTPException(status_code=500, detail=f"檢測失敗: {str(e)}")
+        logger.error(f"❌ 檢測失敗: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="檢測服務暫時不可用，請稍後再試")
 
 @app.get("/test", response_class=HTMLResponse)
 async def test_interface():
@@ -357,4 +356,9 @@ async def test_interface():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host=HOST, port=PORT)
+    uvicorn.run(
+        "main:app",
+        host=HOST, 
+        port=PORT, 
+        reload=RELOAD
+    )

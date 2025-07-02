@@ -58,7 +58,8 @@ class PillDetector:
         """載入 ONNX 模型"""
         try:
             if not os.path.exists(MODEL_PATH):
-                raise FileNotFoundError(f"ONNX 模型檔案不存在: {MODEL_PATH}")
+                logger.error(f"ONNX 模型檔案不存在: {MODEL_PATH}")
+                raise FileNotFoundError("ONNX 模型檔案不存在")
             
             # 配置 ONNX Runtime 性能優化設定
             sess_options = ort.SessionOptions()
@@ -84,14 +85,15 @@ class PillDetector:
             logger.info(f"📤 模型輸出: {[out.name for out in self.onnx_session.get_outputs()]}")
             
         except Exception as e:
-            logger.error(f"❌ 載入 ONNX 模型失敗: {e}")
-            raise
+            logger.error(f"❌ 載入 ONNX 模型失敗: {e}", exc_info=True)
+            raise Exception("模型載入失敗")
             
     async def _load_class_names(self):
         """載入類別名稱"""
         try:
             if not os.path.exists(COCO_ANNOTATIONS_PATH):
-                raise FileNotFoundError(f"COCO 標註檔案不存在: {COCO_ANNOTATIONS_PATH}")
+                logger.error(f"COCO 標註檔案不存在: {COCO_ANNOTATIONS_PATH}")
+                raise FileNotFoundError("類別定義檔案不存在")
                 
             with open(COCO_ANNOTATIONS_PATH, "r", encoding='utf-8') as f:
                 coco_data = json.load(f)
@@ -103,8 +105,8 @@ class PillDetector:
             logger.info(f"📋 類別: {self.class_names}")
             
         except Exception as e:
-            logger.error(f"❌ 載入類別名稱失敗: {e}")
-            raise
+            logger.error(f"❌ 載入類別名稱失敗: {e}", exc_info=True)
+            raise Exception("類別定義載入失敗")
             
     def preprocess_image(self, image_array: np.ndarray) -> Tuple[np.ndarray, Image.Image]:
         """

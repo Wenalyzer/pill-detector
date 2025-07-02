@@ -15,19 +15,29 @@ def test_api_comprehensive():
     print("🚀 開始測試藥丸檢測 API")
     print("=" * 50)
     
+    # 追蹤測試結果
+    test_results = {
+        'connection': False,
+        'health': False,
+        'file_upload': False,
+        'url_detection': False,
+        'error_handling': False
+    }
+    
     # 1. 測試連接
     print("1️⃣ 測試 API 連接...")
     try:
         response = requests.get(f"{base_url}/", timeout=10)
         if response.status_code == 200:
             print(f"   ✅ API 運行中: {response.json()}")
+            test_results['connection'] = True
         else:
             print(f"   ❌ API 無回應: {response.status_code}")
-            return
+            assert False, f"API 連接失敗，狀態碼: {response.status_code}"
     except Exception as e:
         print(f"   ❌ 連接失敗: {e}")
         print(f"   💡 提示: 請先啟動 API 服務 (python main.py)")
-        return
+        assert False, f"API 連接異常: {e}"
     
     # 2. 測試健康檢查
     print("\n2️⃣ 測試健康檢查...")
@@ -39,10 +49,12 @@ def test_api_comprehensive():
         if not health_data.get("service_ready", False):
             print("   ⚠️ 服務未就緒，請檢查模型檔案和初始化狀態")
             print("   💡 提示: 執行 python scripts/download_model.py 下載模型")
-            return
+            assert False, f"服務未就緒: {health_data}"
+        
+        test_results['health'] = True
     except Exception as e:
         print(f"   ❌ 健康檢查失敗: {e}")
-        return
+        assert False, f"健康檢查異常: {e}"
     
     # 3. 測試檔案上傳檢測
     print("\n3️⃣ 測試檔案上傳檢測...")
@@ -65,10 +77,19 @@ def test_api_comprehensive():
             if response.status_code == 200:
                 result = response.json()
                 print(f"   ✅ 檔案上傳檢測成功!")
+                
+                # 驗證回應格式
+                assert 'success' in result, "回應缺少 success 欄位"
+                assert result.get('success'), f"檢測失敗: {result.get('message', '未知錯誤')}"
+                
+                data = result.get('data', result)
+                detections = data.get('detections', [])
+                assert isinstance(detections, list), "detections 應該是列表"
+                
                 display_detection_results(result, total_time)
+                test_results['file_upload'] = True
                 
                 # 儲存標註圖片
-                data = result.get('data', result)
                 annotated_image = data.get('annotated_image', data.get('annotated_image_base64', ''))
                 if annotated_image:
                     # 移除 data:image/jpeg;base64, 前綴
@@ -79,11 +100,14 @@ def test_api_comprehensive():
             else:
                 print(f"   ❌ 檔案上傳檢測失敗: {response.status_code}")
                 print(f"   📄 錯誤訊息: {response.text}")
+                assert False, f"檔案上傳檢測失敗，狀態碼: {response.status_code}"
                 
         except Exception as e:
             print(f"   ❌ 檔案上傳測試失敗: {e}")
+            assert False, f"檔案上傳測試異常: {e}"
     else:
         print(f"   ⚠️ 測試圖片不存在: {test_image_path}")
+        assert False, f"測試圖片不存在: {test_image_path}"
     
     # 4. 測試 URL 檢測
     print("\n4️⃣ 測試 URL 檢測...")
@@ -107,10 +131,19 @@ def test_api_comprehensive():
         if response.status_code == 200:
             result = response.json()
             print(f"   ✅ URL 檢測成功!")
+            
+            # 驗證回應格式
+            assert 'success' in result, "回應缺少 success 欄位"
+            assert result.get('success'), f"檢測失敗: {result.get('message', '未知錯誤')}"
+            
+            data = result.get('data', result)
+            detections = data.get('detections', [])
+            assert isinstance(detections, list), "detections 應該是列表"
+            
             display_detection_results(result, total_time)
+            test_results['url_detection'] = True
             
             # 儲存標註圖片
-            data = result.get('data', result)
             annotated_image = data.get('annotated_image', data.get('annotated_image_base64', ''))
             if annotated_image:
                 # 移除 data:image/jpeg;base64, 前綴
@@ -121,15 +154,32 @@ def test_api_comprehensive():
         else:
             print(f"   ❌ URL 檢測失敗: {response.status_code}")
             print(f"   📄 錯誤訊息: {response.text}")
+            assert False, f"URL 檢測失敗，狀態碼: {response.status_code}"
             
     except Exception as e:
         print(f"   ❌ URL 檢測測試失敗: {e}")
+        assert False, f"URL 檢測異常: {e}"
     
     # 5. 測試錯誤處理
     print("\n5️⃣ 測試錯誤處理...")
-    test_error_cases(base_url)
+    try:
+        error_handling_passed = test_error_cases(base_url)
+        if error_handling_passed:
+            test_results['error_handling'] = True
+        else:
+            assert False, "錯誤處理測試未通過"
+    except Exception as e:
+        print(f"   ❌ 錯誤處理測試異常: {e}")
+        assert False, f"錯誤處理測試異常: {e}"
     
     print(f"\n✅ API 測試完成")
+    
+    # 驗證所有關鍵測試都通過
+    failed_tests = [test for test, passed in test_results.items() if not passed]
+    if failed_tests:
+        assert False, f"以下測試未通過: {failed_tests}"
+    
+    print("🎉 所有測試項目都通過!")
 
 def display_detection_results(result, total_time):
     """顯示檢測結果"""
@@ -152,6 +202,9 @@ def display_detection_results(result, total_time):
 def test_error_cases(base_url):
     """測試錯誤處理情況"""
     
+    invalid_url_test_passed = False
+    empty_request_test_passed = False
+    
     # 測試無效 URL
     print("   📋 測試無效 URL...")
     try:
@@ -159,10 +212,12 @@ def test_error_cases(base_url):
         response = requests.post(f"{base_url}/detect", data=data, timeout=30)
         if response.status_code != 200:
             print(f"   ✅ 無效 URL 錯誤處理正常: {response.status_code}")
+            invalid_url_test_passed = True
         else:
             print(f"   ⚠️ 無效 URL 未正確處理")
     except:
         print(f"   ✅ 無效 URL 請求超時，錯誤處理正常")
+        invalid_url_test_passed = True
     
     # 測試空請求
     print("   📋 測試空請求...")
@@ -170,10 +225,13 @@ def test_error_cases(base_url):
         response = requests.post(f"{base_url}/detect", timeout=10)
         if response.status_code in [400, 422]:  # FastAPI 驗證錯誤或 Bad Request
             print(f"   ✅ 空請求錯誤處理正常: {response.status_code}")
+            empty_request_test_passed = True
         else:
             print(f"   ⚠️ 空請求處理異常: {response.status_code}")
     except Exception as e:
         print(f"   ❌ 空請求測試失敗: {e}")
+    
+    return invalid_url_test_passed and empty_request_test_passed
 
 def save_annotated_image(base64_string, filename):
     """儲存 base64 標註圖片"""

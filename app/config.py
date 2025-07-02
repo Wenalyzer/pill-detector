@@ -7,7 +7,6 @@ import logging
 
 # API 服務基本設定
 API_TITLE = "💊 藥丸檢測 API"
-API_VERSION = "2.0.0"  # 升級到 2.0 反映架構重構
 API_DESCRIPTION = "AI 藥丸識別服務 - 使用 RF-DETR ONNX 模型進行藥丸檢測"
 
 # 上傳檔案相關設定
@@ -26,7 +25,6 @@ IMAGENET_STD = [0.229, 0.224, 0.225]   # RGB 通道標準差
 # 檢測參數設定
 CONFIDENCE_THRESHOLD = 0.5  # 信心度閾值
 TOP_K = 10                  # 選擇前 K 個檢測結果（藥丸檢測通常不需要太多）
-NMS_THRESHOLD = 0.5         # 非極大值抑制閾值（暫未使用）
 
 # 圖像標註顯示設定
 COLORS = [
@@ -58,7 +56,7 @@ ALLOW_HEADERS = ["*"]
 # 伺服器啟動參數
 HOST = "0.0.0.0"
 PORT = 8000
-RELOAD = True  # 開發模式自動重載
+RELOAD = True
 
 # 日誌設定
 LOG_LEVEL = logging.INFO

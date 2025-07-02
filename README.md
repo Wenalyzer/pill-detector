@@ -37,10 +37,10 @@ python scripts/download_model.py
 
 ### 本地開發
 ```bash
-# 直接啟動主應用 (開發模式，固定端口)
+# 開發模式啟動 (自動重載，修改代碼即時生效)
 python main.py
 
-# 或使用 uvicorn 手動啟動 (支援熱重載)
+# 或使用 uvicorn 命令行啟動
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 

@@ -8,5 +8,5 @@ from .detection_service import DetectionService
 from .image_annotator import ImageAnnotator
 from .config import *
 
-__version__ = "2.0.0"  # 與 config.py 保持一致
+__version__ = "2.1.0"
 __all__ = ["PillDetector", "DetectionService", "ImageAnnotator"]
