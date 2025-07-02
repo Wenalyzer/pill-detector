@@ -77,17 +77,22 @@ open http://localhost:8000/test
 │
 ├── app/                      # 📂 核心應用模組
 │   ├── __init__.py          # 📦 模組初始化
-│   ├── pill_detector.py     # 🎯 檢測器核心
-│   ├── config.py            # ⚙️ 配置管理
-│   └── _annotations.coco.json # 📊 類別定義
+│   ├── config.py            # ⚙️ 統一配置管理
+│   ├── detection_service.py # 🎮 檢測服務業務邏輯層
+│   ├── pill_detector.py     # 🎯 核心檢測器（模型推理）
+│   ├── image_annotator.py   # 🖼️ 圖像標註器
+│   ├── utils/               # 🔧 工具模組
+│   │   ├── coordinate_utils.py  # 座標轉換工具
+│   │   └── font_utils.py        # 字體處理工具
+│   └── _annotations.coco.json # 📊 COCO格式類別定義
 │
 ├── models/                   # 🧠 ONNX 模型
 │   └── inference_model.onnx  # (python scripts/download_model.py 下載)
 │
 ├── tests/                    # 🧪 測試與驗證
 │   ├── test_api.py          # API 功能測試
-│   ├── compare_detection_methods.py # 檢測方法比較
-│   └── image.jpg            # 測試圖片
+│   ├── image.jpg            # 測試圖片
+│   └── IMG_*.jpg            # 額外測試圖片
 │
 ├── docs/                     # 📚 技術文檔
 │   ├── guides/              # 使用指南
@@ -103,7 +108,8 @@ open http://localhost:8000/test
 │   └── download_model.py     # 模型下載腳本
 │
 └── .github/workflows/        # 🔄 CI/CD 配置
-    └── smart-build.yml       # GitHub Actions 建置流程
+    ├── smart-build.yml       # GitHub Actions 建置流程
+    └── deploy.yml            # 部署流程配置
 ```
 
 ## 🔗 API 端點
