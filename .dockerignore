@@ -1,22 +1,32 @@
-# Python 相關
+# Git
+.git
+.gitignore
+.gitattributes
+README.md
+
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.pyw
 .Python
-pip-log.txt
-pip-delete-this-directory.txt
-.pytest_cache/
-.coverage
-.tox/
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.log
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# 虛擬環境
+# Virtual environments
 .env
 .venv
 env/
@@ -25,68 +35,94 @@ ENV/
 env.bak/
 venv.bak/
 
-# IDE 和編輯器
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
+*.sublime-*
 
-# 系統檔案
+# System files
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
+desktop.ini
 
-# Git 相關
-.git/
-.gitignore
-.gitattributes
-
-# 文檔
-README.md
-LICENSE
-docs/
-*.md
-
-# 開發和測試檔案
+# 測試和開發檔案 - 生產環境不需要
 tests/
-test_*.py
-*_test.py
+test_images/
+sample_images/
+test_output/
+*.coverage
+htmlcov/
 .pytest_cache/
-test-results/
+.tox/
+.coverage.*
 
-# 暫存和備份檔案
+# 日誌
+*.log
+logs/
+
+# 臨時檔案
 *.tmp
 *.bak
-*.backup
-*.old
-*.orig
-
-# Docker 相關
-Dockerfile*
-docker-compose*.yml
-.dockerignore
-
-# CI/CD 和部署
-.github/
-.gitlab-ci.yml
-.travis.yml
-Jenkinsfile
-deploy/
-
-# 大型檔案和資料夾 (根據需要調整)
-data/
-datasets/
-logs/
 temp/
 tmp/
 
-# 機密檔案
-.env.*
-config.json
-secrets/
+# 上傳檔案 - 運行時會重新創建
+uploads/
+static/uploads/
+
+# 快取檔案
+.cache/
+cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb
+
+# Claude Code 相關
+.claude/
+CLAUDE.md
+
+# Docker 相關
+Dockerfile.dev
+Dockerfile.test
+docker-compose.yml
+docker-compose.*.yml
+.dockerignore
+
+# 執行時檔案
+*.pid
+*.sock
+
+# 私有檔案
 private/
+secrets/
+.env.*
+
+# 文檔 - 生產環境不需要
+docs/
+*.md
+LICENSE
+CHANGELOG*
+
+# 舊版代碼 - 生產環境不需要
+legacy/
+
+# 開發工具配置
+.editorconfig
+.flake8
+.pylintrc
+pyproject.toml
+setup.cfg
+tox.ini
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+
+# 其他開發文件
+Makefile
+*.sh

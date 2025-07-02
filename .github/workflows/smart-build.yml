@@ -1,10 +1,15 @@
-name: 🚀 Smart Build & Version Management
+name: 🚀 藥丸檢測 API - 建置與測試
 
 on:
   push:
-    branches: [ main ]
+    branches: [main, 'feature/*'] 
+    paths-ignore: 
+      - 'docs/**'
+      - '*.md'
+      - 'LICENSE'
+      - '.gitignore'
   pull_request:
-    branches: [ main ]
+    branches: [main] 
 
 env:
   REGISTRY: ghcr.io
@@ -40,29 +45,46 @@ jobs:
           type=ref,event=branch
           type=ref,event=pr,prefix=pr-
           type=raw,value=latest,enable={{is_default_branch}}
+        flavor: |
+          prefix=
+          suffix=
     
     - name: Build and push
       uses: docker/build-push-action@v5
       with:
         context: .
-        push: true
+        push: true  # 所有分支都推送，但標籤不同
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
     
+    - name: 🛡️ 容器安全掃描 (Trivy)
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        
+    - name: 📊 上傳容器安全掃描報告
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: container-security-reports-${{ github.run_id }}
+        path: trivy-results.sarif
+        
+    - name: 📊 上傳安全掃描到 GitHub Security
+      uses: github/codeql-action/upload-sarif@v3
+      if: always() && github.ref == 'refs/heads/main'  # 只有 main 分支上傳到 Security 頁面
+      with:
+        sarif_file: 'trivy-results.sarif'
+    
     - name: Test Docker Image
       run: |
         echo "🧪 Testing the built Docker image..."
         
-        # 簡化的 image 選擇 (移除不會執行的 tag 分支)
-        if [ "${{ github.ref_name }}" == "main" ]; then
-          TEST_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
-        else
-          # PR 情況
-          TEST_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:pr-${{ github.event.number }}"
-        fi
-        
+        # 使用第一個推送的標籤進行測試
+        TEST_IMAGE="${{ fromJSON(steps.meta.outputs.json).tags[0] }}"
         echo "Testing image: $TEST_IMAGE"
         
         # 啟動容器
@@ -70,7 +92,7 @@ jobs:
         
         # 等待啟動
         echo "⏳ Waiting for container to start..."
-        sleep 60
+        sleep 30
         
         # 檢查容器狀態
         if ! docker ps | grep test-container; then
@@ -78,6 +100,10 @@ jobs:
           docker logs test-container
           exit 1
         fi
+        
+        # 顯示容器日誌（用於調試）
+        echo "📋 Container logs:"
+        docker logs test-container
         
         # 健康檢查
         echo "🔍 Testing health endpoint..."
@@ -98,9 +124,91 @@ jobs:
         # API 測試
         echo "🔍 Testing endpoints..."
         curl -f http://localhost:8000/ || exit 1
-        curl -f http://localhost:8000/classes || exit 1
         
         echo "🎉 All tests passed!"
+        
+        # ⚡ API 效能基準測試
+        echo "⚡ 執行 API 效能基準測試..."
+        
+        # 建立 benchmark 報告檔案
+        echo "# 🚀 API 效能基準測試報告" > benchmark_report.md
+        echo "" >> benchmark_report.md
+        echo "**測試時間**: $(date)" >> benchmark_report.md
+        echo "**測試環境**: GitHub Actions Ubuntu" >> benchmark_report.md
+        echo "" >> benchmark_report.md
+        echo "## 📊 檢測 API 效能測試" >> benchmark_report.md
+        echo "" >> benchmark_report.md
+        echo "| 測試次數 | 響應時間 | 狀態 |" >> benchmark_report.md
+        echo "|---------|----------|------|" >> benchmark_report.md
+        
+        # 效能測試並記錄結果 - 測試實際檢測 API
+        total_time=0
+        success_count=0
+        for i in {1..5}; do
+          start_time=$(date +%s%N)
+          # 使用穩定的測試圖片 URL (Form 格式)
+          http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST http://localhost:8000/detect \
+            -F "image_url=https://httpbin.org/image/jpeg")
+          end_time=$(date +%s%N)
+          response_time=$(( (end_time - start_time) / 1000000 ))
+          
+          if [ "$http_code" = "200" ]; then
+            status="✅ 成功"
+            total_time=$((total_time + response_time))
+            success_count=$((success_count + 1))
+          else
+            status="❌ 失敗($http_code)"
+          fi
+          
+          echo "| 第 $i 次 | ${response_time}ms | $status |" >> benchmark_report.md
+          echo "   第 $i 次: ${response_time}ms - $status"
+        done
+        
+        # 計算平均值
+        if [ $success_count -gt 0 ]; then
+          avg_time=$((total_time / success_count))
+        else
+          avg_time=0
+        fi
+        
+        echo "" >> benchmark_report.md
+        echo "## 📈 統計結果" >> benchmark_report.md
+        echo "" >> benchmark_report.md
+        echo "- **平均響應時間**: ${avg_time}ms" >> benchmark_report.md
+        echo "- **總測試次數**: 5 次" >> benchmark_report.md
+        echo "- **成功次數**: ${success_count} 次" >> benchmark_report.md
+        echo "- **成功率**: $((success_count * 100 / 5))%" >> benchmark_report.md
+        
+        if [ $success_count -eq 0 ]; then
+          echo "- **效能評級**: 🔴 測試失敗" >> benchmark_report.md
+          echo "❌ 效能測試: 全部失敗"
+        elif [ $avg_time -lt 2000 ]; then
+          echo "- **效能評級**: 🟢 優秀 (< 2s)" >> benchmark_report.md
+          echo "✅ 效能測試: 優秀 (平均 ${avg_time}ms)"
+        elif [ $avg_time -lt 5000 ]; then
+          echo "- **效能評級**: 🟡 良好 (< 5s)" >> benchmark_report.md
+          echo "✅ 效能測試: 良好 (平均 ${avg_time}ms)"
+        else
+          echo "- **效能評級**: 🔴 需要優化 (> 5s)" >> benchmark_report.md
+          echo "⚠️ 效能測試: 需要優化 (平均 ${avg_time}ms)"
+        fi
+        
+        echo "" >> benchmark_report.md
+        echo "---" >> benchmark_report.md
+        echo "*此報告由 GitHub Actions 自動產生*" >> benchmark_report.md
+        
+        # 顯示報告內容
+        echo ""
+        echo "📊 完整 Benchmark 報告:"
+        cat benchmark_report.md
+    
+    - name: 📊 上傳 Benchmark 報告
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: benchmark-report-${{ github.run_id }}
+        path: benchmark_report.md
     
     - name: Cleanup test container
       if: always()

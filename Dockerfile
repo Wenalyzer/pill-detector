@@ -1,46 +1,61 @@
-FROM python:3.12.11-slim
+# 多階段構建 - 輕量化推理環境
+FROM python:3.12-slim AS builder
 
-ENV PYTHONUNBUFFERED=1
-
+# 安裝構建依賴並升級安全套件
 RUN apt-get update && \
-    apt-get install -y \
-        libgl1-mesa-glx \
-        libglib2.0-0 \
+    apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
         curl \
-        fonts-dejavu-core \
-        fontconfig && \
+        gcc \
+        g++ && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# 設置工作目錄
+WORKDIR /build
+COPY requirements.txt .
+RUN pip wheel --no-cache-dir --no-deps --wheel-dir /build/wheels -r requirements.txt
+
+# 生產階段 - 最小化映像檔
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# 只安裝運行時必需的系統依賴並升級安全套件 (已移除 OpenCV 相關依賴)
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
+        curl \
+        fonts-dejavu-core \
+        fontconfig \
+        && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
 WORKDIR /workspace
 
-# 複製並安裝 Python 依賴 (先複製 requirements.txt 利用 Docker 快取)
-COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
-
-# 複製應用檔案
+# 從構建階段複製 wheels，安裝依賴，下載模型，設置用戶 - 一次完成
+COPY --from=builder /build/wheels /wheels
+COPY requirements.txt /wheels/requirements.txt
+COPY main.py uvicorn.prod.py ./
 COPY ./app ./app
-COPY ./scripts ./scripts
+COPY ./scripts/download_model.py /tmp/
 
-# 下載模型
-RUN python scripts/download_model.py
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir --find-links /wheels -r /wheels/requirements.txt && \
+    rm -rf /wheels /root/.cache/pip && \
+    python /tmp/download_model.py && \
+    rm -f /tmp/download_model.py && \
+    ls -la models/inference_model.onnx && \
+    groupadd -r appuser && useradd -r -g appuser appuser && \
+    chown -R appuser:appuser /workspace
+USER appuser
 
-# 驗證模型存在
-RUN ls -la models/inference_model.onnx && echo "✅ Model downloaded successfully"
-
-# 驗證關鍵檔案存在
-RUN ls -la app/_annotations.coco.json && \
-    ls -la app/main.py && \
-    echo "✅ 所有必要檔案都存在"
-
-# 暴露端口
 EXPOSE 8000
 
-# 健康檢查
-HEALTHCHECK --interval=30s --timeout=30s --start-period=10s --retries=3 \
+# 輕量化健康檢查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=2 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# 啟動命令
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Cloud Run 優化的 ASGI 啟動
+CMD ["python", "uvicorn.prod.py"]
