@@ -17,7 +17,6 @@ from pydantic import BaseModel, HttpUrl
 
 from app.config import *
 from app.detection_service import DetectionService
-from app import __version__
 
 # 設置日誌
 logging.basicConfig(
@@ -57,7 +56,7 @@ async def lifespan(app: FastAPI):
 # 創建 FastAPI 應用
 app = FastAPI(
     title=API_TITLE,
-    version=__version__,
+    version=API_VERSION,
     description=API_DESCRIPTION,
     lifespan=lifespan
 )
@@ -80,7 +79,7 @@ async def root(request: Request):
     detection_service = request.app.state.detection_service
     return {
         "message": "藥丸檢測 API",
-        "version": __version__,
+        "version": API_VERSION,
         "status": "running",
         "supported_classes": detection_service.get_classes() if detection_service and detection_service.is_ready() else [],
         "endpoints": ["/health", "/detect", "/test"]
@@ -152,7 +151,7 @@ async def detect_pills(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ 檢測失敗: {e}", exc_info=True)
+        logger.error(f"❌ 檢測失敗: {str(e)}")
         raise HTTPException(status_code=500, detail="檢測服務暫時不可用，請稍後再試")
 
 @app.get("/test", response_class=HTMLResponse)

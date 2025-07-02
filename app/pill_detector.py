@@ -85,7 +85,7 @@ class PillDetector:
             logger.info(f"📤 模型輸出: {[out.name for out in self.onnx_session.get_outputs()]}")
             
         except Exception as e:
-            logger.error(f"❌ 載入 ONNX 模型失敗: {e}", exc_info=True)
+            logger.error(f"❌ 載入 ONNX 模型失敗: {str(e)}")
             raise Exception("模型載入失敗")
             
     async def _load_class_names(self):
@@ -105,7 +105,7 @@ class PillDetector:
             logger.info(f"📋 類別: {self.class_names}")
             
         except Exception as e:
-            logger.error(f"❌ 載入類別名稱失敗: {e}", exc_info=True)
+            logger.error(f"❌ 載入類別名稱失敗: {str(e)}")
             raise Exception("類別定義載入失敗")
             
     def preprocess_image(self, image_array: np.ndarray) -> Tuple[np.ndarray, Image.Image]:
@@ -150,7 +150,7 @@ class PillDetector:
             new_h = int(original_h * scale)
             
             # 先resize到合適大小（保持長寬比）
-            resized_pil = pil_image.resize((new_w, new_h), Image.BILINEAR)
+            resized_pil = pil_image.resize((new_w, new_h), Image.Resampling.BILINEAR)
             
             # 創建560x560的黑色背景圖片
             padded_pil = Image.new('RGB', (target_w, target_h), (0, 0, 0))

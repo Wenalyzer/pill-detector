@@ -77,8 +77,7 @@ class DetectionService:
             result = await self._detect_and_annotate(image)
             
             total_time = time.perf_counter() - start_time
-            logger.info(f"✅ URL 檢測完成: {result['total_detections']} 個藥丸 | "
-                       f"下載: {download_time:.2f}s | 總時間: {total_time:.2f}s")
+            self._log_detection_result("URL", result['total_detections'], total_time, download_time=download_time)
             return result
             
         except Exception as e:
@@ -113,8 +112,7 @@ class DetectionService:
             result = await self._detect_and_annotate(image)
             
             total_time = time.perf_counter() - start_time
-            logger.info(f"✅ 檔案檢測完成: {result['total_detections']} 個藥丸 | "
-                       f"載入: {load_time:.2f}s | 總時間: {total_time:.2f}s")
+            self._log_detection_result("檔案", result['total_detections'], total_time, load_time=load_time)
             return result
             
         except Exception as e:
@@ -145,8 +143,10 @@ class DetectionService:
     async def _download_image_from_url(self, url: str) -> Image.Image:
         """從 URL 下載圖像"""
         try:
+            download_start = time.perf_counter()
             response = requests.get(url, timeout=REQUEST_TIMEOUT)
             response.raise_for_status()
+            download_time = time.perf_counter() - download_start
             
             # 檢查內容類型
             content_type = response.headers.get('content-type', '').lower()
@@ -156,23 +156,18 @@ class DetectionService:
             # 載入圖像
             image = Image.open(BytesIO(response.content))
             
-            # 統一轉換為 RGB 模式
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
-                logger.info(f"📥 成功下載圖像: {image.size}, 已轉換為 RGB")
-            else:
-                logger.info(f"📥 成功下載圖像: {image.size}, {image.mode}")
-            
+            # 統一處理圖像模式
+            image = self._ensure_rgb_mode(image, f"📥 成功下載圖像 ({download_time*1000:.1f}ms)")
             return image
             
         except requests.RequestException as e:
-            logger.error(f"圖像下載失敗: {e}", exc_info=True)
+            logger.error(f"圖像下載失敗: {str(e)}")
             raise Exception("圖像下載失敗")
         except (IOError, OSError) as e:
-            logger.error(f"圖像載入失敗: {e}", exc_info=True)
+            logger.error(f"圖像載入失敗: {str(e)}")
             raise Exception("圖像格式不支援或已損壞")
         except Exception as e:
-            logger.error(f"圖像處理未知錯誤: {e}", exc_info=True)
+            logger.error(f"圖像處理未知錯誤: {str(e)}")
             raise Exception("圖像處理失敗")
     
     async def _load_image_from_bytes(self, file_content: bytes) -> Image.Image:
@@ -180,20 +175,15 @@ class DetectionService:
         try:
             image = Image.open(BytesIO(file_content))
             
-            # 統一轉換為 RGB 模式
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
-                logger.info(f"📁 成功載入圖像: {image.size}, 已轉換為 RGB")
-            else:
-                logger.info(f"📁 成功載入圖像: {image.size}, {image.mode}")
-            
+            # 統一處理圖像模式
+            image = self._ensure_rgb_mode(image, "📁 成功載入圖像")
             return image
             
         except (IOError, OSError) as e:
-            logger.error(f"檔案圖像載入失敗: {e}", exc_info=True)
+            logger.error(f"檔案圖像載入失敗: {str(e)}")
             raise Exception("上傳的檔案格式不支援或已損壞")
         except Exception as e:
-            logger.error(f"檔案處理未知錯誤: {e}", exc_info=True)
+            logger.error(f"檔案處理未知錯誤: {str(e)}")
             raise Exception("檔案處理失敗")
     
     async def _detect_and_annotate(self, image: Image.Image) -> Dict:
@@ -211,8 +201,7 @@ class DetectionService:
             annotation_time = time.perf_counter() - annotation_start
             
             total_time = time.perf_counter() - start_time
-            logger.info(f"⚡ 預處理: {preprocess_time:.2f}s | 推理: {inference_time:.2f}s | "
-                       f"後處理: {postprocess_time:.2f}s | 標註: {annotation_time:.2f}s | 總計: {total_time:.2f}s")
+            self._log_performance_breakdown(preprocess_time, inference_time, postprocess_time, annotation_time, total_time)
             
             return {
                 'detections': detections,
@@ -272,6 +261,32 @@ class DetectionService:
         buffer = BytesIO()
         image.save(buffer, format=format, quality=quality)
         return base64.b64encode(buffer.getvalue()).decode()
+    
+    def _ensure_rgb_mode(self, image: Image.Image, log_prefix: str) -> Image.Image:
+        """統一處理圖像 RGB 轉換"""
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+            logger.info(f"{log_prefix}: {image.size}, 已轉換為 RGB")
+        else:
+            logger.info(f"{log_prefix}: {image.size}, {image.mode}")
+        return image
+    
+    def _log_detection_result(self, detection_type: str, count: int, total_time: float, 
+                            download_time: float = None, load_time: float = None):
+        """統一日誌格式化檢測結果"""
+        extra_info = ""
+        if download_time is not None:
+            extra_info = f" | 下載: {download_time:.2f}s"
+        elif load_time is not None:
+            extra_info = f" | 載入: {load_time:.2f}s"
+        
+        logger.info(f"✅ {detection_type}檢測完成: {count} 個藥丸{extra_info} | 總時間: {total_time:.2f}s")
+    
+    def _log_performance_breakdown(self, preprocess: float, inference: float, 
+                                 postprocess: float, annotation: float, total: float):
+        """統一日誌格式化性能分解"""
+        logger.info(f"⚡ 預處理: {preprocess:.2f}s | 推理: {inference:.2f}s | "
+                   f"後處理: {postprocess:.2f}s | 標註: {annotation:.2f}s | 總計: {total:.2f}s")
     
     def get_service_info(self) -> Dict:
         """獲取服務資訊"""
