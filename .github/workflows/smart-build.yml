@@ -162,11 +162,10 @@ jobs:
         success_count=0
         for i in {1..5}; do
           start_time=$(date +%s%N)
-          # 使用穩定的測試圖片 URL
+          # 使用穩定的測試圖片 URL (Form 格式)
           http_code=$(curl -s -o /dev/null -w "%{http_code}" \
             -X POST http://localhost:8000/detect \
-            -H "Content-Type: application/json" \
-            -d '{"image_url": "https://httpbin.org/image/jpeg"}')
+            -F "image_url=https://httpbin.org/image/jpeg")
           end_time=$(date +%s%N)
           response_time=$(( (end_time - start_time) / 1000000 ))
           

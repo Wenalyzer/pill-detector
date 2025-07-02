@@ -16,7 +16,7 @@ COPY requirements.txt .
 RUN pip wheel --no-cache-dir --no-deps --wheel-dir /build/wheels -r requirements.txt
 
 # 生產階段 - 最小化映像檔
-FROM python:3.12.11-slim
+FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -41,7 +41,8 @@ COPY main.py uvicorn.prod.py ./
 COPY ./app ./app
 COPY ./scripts/download_model.py /tmp/
 
-RUN pip install --no-cache-dir --find-links /wheels -r /wheels/requirements.txt && \
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir --find-links /wheels -r /wheels/requirements.txt && \
     rm -rf /wheels /root/.cache/pip && \
     python /tmp/download_model.py && \
     rm -f /tmp/download_model.py && \
