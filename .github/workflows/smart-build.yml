@@ -33,7 +33,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip safety
         echo "🔍 檢查 Python 套件漏洞..."
-        if ! safety scan -r requirements.txt --output json > safety-report.json; then
+        if ! safety scan --save-as json safety-report.json; then
           echo "⚠️ 發現安全漏洞，詳見報告"
           # 不讓 CI 失敗，但會在報告中顯示
         fi
