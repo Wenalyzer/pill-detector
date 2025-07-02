@@ -62,6 +62,7 @@ jobs:
     
     - name: 🛡️ 容器安全掃描 (Trivy)
       uses: aquasecurity/trivy-action@master
+      if: github.ref == 'refs/heads/main'  # 只在main分支掃描（因為只有main分支有image）
       with:
         image-ref: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
         format: 'sarif'
@@ -69,14 +70,14 @@ jobs:
         
     - name: 📊 上傳容器安全掃描報告
       uses: actions/upload-artifact@v4
-      if: always()
+      if: always() && github.ref == 'refs/heads/main'  # 只在有SARIF檔案時上傳
       with:
         name: container-security-reports-${{ github.run_id }}
         path: trivy-results.sarif
         
     - name: 📊 上傳安全掃描到 GitHub Security
       uses: github/codeql-action/upload-sarif@v3
-      if: always() && (github.ref == 'refs/heads/main' || github.event_name == 'pull_request')  # 只在main分支和PR上傳到Security頁面
+      if: always() && github.ref == 'refs/heads/main'  # 只在main分支上傳（因為只有main有掃描結果）
       with:
         sarif_file: 'trivy-results.sarif'
     
