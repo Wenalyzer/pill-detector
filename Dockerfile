@@ -1,8 +1,9 @@
 # 多階段構建 - 輕量化推理環境
-FROM python:3.12.11-slim AS builder
+FROM python:3.12-slim AS builder
 
-# 安裝構建依賴
+# 安裝構建依賴並升級安全套件
 RUN apt-get update && \
+    apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
         curl \
         gcc \
@@ -20,8 +21,9 @@ FROM python:3.12.11-slim
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# 只安裝運行時必需的系統依賴 (已移除 OpenCV 相關依賴)
+# 只安裝運行時必需的系統依賴並升級安全套件 (已移除 OpenCV 相關依賴)
 RUN apt-get update && \
+    apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
         curl \
         fonts-dejavu-core \
