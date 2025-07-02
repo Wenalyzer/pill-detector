@@ -292,7 +292,7 @@ class DetectionService:
         """獲取服務資訊"""
         return {
             'service_name': 'PillDetectionService',
-            'version': '2.0.0',
+            'version': API_VERSION,
             'status': 'ready' if self.is_ready() else 'initializing',
             'supported_classes': len(self.get_classes()),
             'components': {
