@@ -8,7 +8,7 @@ def download_model():
     
     GITHUB_USER = "Wenalyzer"
     REPO_NAME = "pill-detector"
-    VERSION = "v2.1.0"
+    VERSION = "v2.1.1"
     FILENAME = "inference_model.onnx"
     
     MODEL_URL = f"https://github.com/{GITHUB_USER}/{REPO_NAME}/releases/download/{VERSION}/{FILENAME}"
