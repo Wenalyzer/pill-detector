@@ -65,6 +65,7 @@ with open('camera_photo.jpg', 'rb') as f:
 ### 📋 基礎資訊端點
 - **API 狀態**: `GET /` - 顯示 API 資訊
 - **健康檢查**: `GET /health` - 服務健康狀態
+- **藥物類別**: `GET /classes` - 取得所有支援的藥物類別（中英文對照）
 
 ### 檢測端點
 
@@ -102,13 +103,19 @@ curl -X POST "/detect" \
     "detections": [
       {
         "class_id": 1,
-        "class_name": "Amoxicillin",
+        "class_name": "安莫西林膠囊",
+        "class_name_en": "Amoxicillin",
+        "class_name_zh": "安莫西林膠囊",
         "confidence": 0.95,
         "bbox": [x1, y1, x2, y2]
       }
     ],
     "annotated_image": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ...",
-    "total_detections": 2
+    "total_detections": 2,
+    "image_info": {
+      "original_size": [1920, 1080],
+      "mode": "RGB"
+    }
   }
 }
 ```
@@ -119,11 +126,16 @@ curl -X POST "/detect" \
 - **`message`**: 結果訊息 (string)  
 - **`data.detections`**: 檢測結果陣列
   - `class_id`: 類別 ID (integer)
-  - `class_name`: 藥丸名稱 (string)
+  - `class_name`: 中文藥丸名稱 (string)
+  - `class_name_en`: 英文藥丸名稱 (string)
+  - `class_name_zh`: 中文藥丸名稱 (string)
   - `confidence`: 信心度 0-1 (float)
   - `bbox`: 邊界框座標 [x1, y1, x2, y2] (array)
 - **`data.annotated_image`**: 標註後圖片 (base64 data URL)
 - **`data.total_detections`**: 檢測到的藥丸總數 (integer)
+- **`data.image_info`**: 圖片資訊 (object)
+  - `original_size`: 原始圖片尺寸 [width, height] (array)
+  - `mode`: 圖片模式，如 "RGB" (string)
 
 ## 💻 程式整合範例
 
@@ -143,6 +155,12 @@ result = response.json()
 if result['success']:
     print(f"檢測到 {result['data']['total_detections']} 個藥丸")
     
+    # 處理檢測結果
+    for detection in result['data']['detections']:
+        print(f"發現: {detection['class_name']} ({detection['class_name_en']})")
+        print(f"信心度: {detection['confidence']:.2f}")
+        print(f"位置: {detection['bbox']}")
+    
     # 處理標註圖片
     base64_image = result['data']['annotated_image']
     # 可直接用於前端顯示
@@ -161,6 +179,15 @@ fetch('/detect', {
 .then(response => response.json())
 .then(data => {
     if (data.success) {
+        console.log(`發現 ${data.data.total_detections} 個藥丸`);
+        
+        // 顯示檢測結果
+        data.data.detections.forEach((detection, index) => {
+            console.log(`${index + 1}. ${detection.class_name} (${detection.class_name_en})`);
+            console.log(`   信心度: ${detection.confidence.toFixed(2)}`);
+        });
+        
+        // 顯示標註圖片
         document.getElementById('result').src = data.data.annotated_image;
     }
 });
@@ -169,4 +196,26 @@ fetch('/detect', {
 ### HTML 顯示
 ```html
 <img id="result" src="" alt="檢測結果" />
+```
+
+### 📋 藥物類別端點
+```bash
+curl -X GET "https://pill-detector-23010935669.us-central1.run.app/classes"
+```
+
+**回應格式：**
+```json
+{
+  "classes": [
+    {
+      "english": "Amoxicillin",
+      "chinese": "安莫西林膠囊"
+    },
+    {
+      "english": "Diovan_160mg", 
+      "chinese": "得安穩錠160mg"
+    }
+  ],
+  "total_classes": 18
+}
 ```
