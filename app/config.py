@@ -6,7 +6,7 @@
 import logging
 
 # API 服務基本設定
-API_VERSION = "2.1.0"
+API_VERSION = "2.1.2"
 API_TITLE = "💊 藥丸檢測 API"
 API_DESCRIPTION = "AI 藥丸識別服務 - 使用 RF-DETR ONNX 模型進行藥丸檢測"
 
@@ -25,7 +25,8 @@ IMAGENET_STD = [0.229, 0.224, 0.225]   # RGB 通道標準差
 
 # 檢測參數設定
 CONFIDENCE_THRESHOLD = 0.5  # 信心度閾值
-TOP_K = 10                  # 選擇前 K 個檢測結果（藥丸檢測通常不需要太多）
+TOP_K = 30                  # 選擇前 K 個檢測結果
+NMS_IOU_THRESHOLD = 0.5     # NMS IoU 閾值，用於移除重複檢測
 
 # 圖像標註顯示設定
 COLORS = [
@@ -91,3 +92,25 @@ DETECTION_TIMEOUT = 60             # 檢測處理超時（秒）
 # 圖像輸出設定
 OUTPUT_IMAGE_FORMAT = "JPEG"       # 輸出圖像格式
 OUTPUT_IMAGE_QUALITY = 80          # 輸出圖像品質 (1-100)
+
+# 中文藥名映射表
+CHINESE_DRUG_NAMES = {
+    "Acetal": "愛舒疼錠",
+    "Alprazolam": "安邦錠", 
+    "Amoxicillin": "安莫西林膠囊",
+    "Biotase": "妙化錠",
+    "Bonstan": "普疏痛錠",
+    "Cinnazine": "賜腦清錠",
+    "Diovan_160mg": "得安穩錠160mg",
+    "Diovan_80mg": "得安穩錠80mg",
+    "Diphenidol": "敵芬尼朵錠",
+    "Folacin": "葉酸錠",
+    "Lansoprazole": "胃全膠囊",
+    "Mozapry": "胃默適錠",
+    "Nuspas": "痙得寧錠",
+    "Relecox": "禮痛保膠囊",
+    "Silence": "悠然錠",
+    "Takepron": "泰克胃通錠",
+    "Through": "便通樂錠",
+    "Utraphen": "立除痛錠",
+}

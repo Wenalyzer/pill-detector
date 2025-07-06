@@ -1,128 +1,27 @@
-# Git
+# Git 版本控制
 .git
 .gitignore
-.gitattributes
-README.md
 
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*.sublime-*
-
-# System files
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# 測試和開發檔案 - 生產環境不需要
+# 測試檔案 - Docker 容器不需要執行測試
 tests/
 test_images/
-sample_images/
 test_output/
-*.coverage
-htmlcov/
-.pytest_cache/
-.tox/
-.coverage.*
-
-# 日誌
-*.log
-logs/
-
-# 臨時檔案
-*.tmp
-*.bak
-temp/
-tmp/
-
-# 上傳檔案 - 運行時會重新創建
-uploads/
-static/uploads/
-
-# 快取檔案
-.cache/
-cache/
-
-# Jupyter Notebook
-.ipynb_checkpoints/
-*.ipynb
-
-# Claude Code 相關
-.claude/
-CLAUDE.md
-
-# Docker 相關
-Dockerfile.dev
-Dockerfile.test
-docker-compose.yml
-docker-compose.*.yml
-.dockerignore
-
-# 執行時檔案
-*.pid
-*.sock
-
-# 私有檔案
-private/
-secrets/
-.env.*
 
 # 文檔 - 生產環境不需要
 docs/
+README.md
 *.md
-LICENSE
-CHANGELOG*
 
-# 舊版代碼 - 生產環境不需要
+# 舊版代碼
 legacy/
 
-# 開發工具配置
-.editorconfig
-.flake8
-.pylintrc
-pyproject.toml
-setup.cfg
-tox.ini
-
-# CI/CD
+# CI/CD - 容器內不需要
 .github/
-.gitlab-ci.yml
-.travis.yml
-.circleci/
 
-# 其他開發文件
-Makefile
-*.sh
+# Claude Code 開發檔案
+.claude/
+CLAUDE.md
+
+# Docker 開發檔案 - 避免遞歸
+Dockerfile.dev
+docker-compose*.yml

@@ -58,7 +58,7 @@ def test_api_comprehensive():
     
     # 3. 測試檔案上傳檢測
     print("\n3️⃣ 測試檔案上傳檢測...")
-    test_image_path = "tests/image.jpg"
+    test_image_path = "tests/IMG_1363_JPG.rf.47f388a7df161e710d93964e509026d6.jpg"
     
     if os.path.exists(test_image_path):
         try:

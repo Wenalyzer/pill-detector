@@ -240,13 +240,16 @@ class DetectionService:
         inference_time = time.perf_counter() - inference_start
         
         # 性能分析報告（如果啟用）
-        if hasattr(self.detector, 'onnx_session') and self.detector.onnx_session:
+        if (hasattr(self.detector, 'onnx_session') and 
+            self.detector.onnx_session and 
+            hasattr(self.detector.onnx_session, 'end_profiling')):
             try:
+                # 只有在 profiling 真正啟用時才嘗試獲取報告
                 prof_file = self.detector.onnx_session.end_profiling()
                 if prof_file:
                     logger.debug(f"🔍 ONNX 性能分析報告: {prof_file}")
-            except:
-                pass  # 如果沒有啟用 profiling，忽略錯誤
+            except Exception as e:
+                logger.debug(f"⚠️ 性能分析報告獲取失敗: {e}")  # 如果沒有啟用 profiling，忽略錯誤
         
         # 後處理（圖像已統一為INPUT_SIZE配置尺寸，無需傳遞尺寸）
         postprocess_start = time.perf_counter()

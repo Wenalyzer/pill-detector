@@ -11,18 +11,32 @@
 ## 🔧 主要特點
 
 - ✅ **精簡依賴**: 9個核心套件，無需 PyTorch/OpenCV
-- ✅ **統一端點**: 單一 `/detect` 支援 URL 和檔案上傳
+- ✅ **完整 API**: 5個端點涵蓋檢測、查詢、測試功能
 - ✅ **完整應用**: FastAPI 應用，包含健康檢查和測試介面
 - ✅ **容器化**: Docker 支援
 
 ## 🏥 支援的藥物類別
 
-- **Amoxicillin** 
-- **Diovan 160mg** 
-- **Lansoprazole** 
-- **Relecox** 
-- **Takepron** 
-- **Utraphen** 
+總計 **18種** 常見藥物，支援中英文標註：
+
+- **安莫西林膠囊** (Amoxicillin)
+- **愛舒疼錠** (Acetal) 
+- **安邦錠** (Alprazolam)
+- **妙化錠** (Biotase)
+- **普疏痛錠** (Bonstan)
+- **賜腦清錠** (Cinnazine)
+- **得安穩錠160mg** (Diovan_160mg)
+- **得安穩錠80mg** (Diovan_80mg)
+- **敵芬尼朵錠** (Diphenidol)
+- **葉酸錠** (Folacin)
+- **胃全膠囊** (Lansoprazole)
+- **胃默適錠** (Mozapry)
+- **痙得寧錠** (Nuspas)
+- **禮痛保膠囊** (Relecox)
+- **悠然錠** (Silence)
+- **泰克胃通錠** (Takepron)
+- **便通樂錠** (Through)
+- **立除痛錠** (Utraphen) 
 
 ## 🚀 快速啟動
 
@@ -115,8 +129,10 @@ open http://localhost:8000/test
 ## 🔗 API 端點
 
 ### 📋 端點總覽
+- `GET /` - API 狀態和基本資訊
+- `GET /health` - 健康檢查與服務狀態
+- `GET /classes` - 取得所有支援的藥物類別 (中英文對照)
 - `POST /detect` - 統一檢測端點 (支援檔案上傳和 URL)
-- `GET /health` - 健康檢查
 - `GET /test` - 網頁測試介面
 
 ## 🎭 技術演進故事

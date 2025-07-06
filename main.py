@@ -81,8 +81,8 @@ async def root(request: Request):
         "message": "藥丸檢測 API",
         "version": API_VERSION,
         "status": "running",
-        "supported_classes": detection_service.get_classes() if detection_service and detection_service.is_ready() else [],
-        "endpoints": ["/health", "/detect", "/test"]
+        "total_classes": len(detection_service.get_classes()) if detection_service and detection_service.is_ready() else 0,
+        "endpoints": ["/health", "/classes", "/detect", "/test"]
     }
 
 @app.get("/health")
@@ -95,6 +95,19 @@ async def health_check(request: Request):
         "status": "healthy" if is_ready else "initializing",
         "service_ready": is_ready,
         "service_info": detection_service.get_service_info() if detection_service else None
+    }
+
+@app.get("/classes")
+@limiter.limit(RATE_LIMIT_GENERAL)
+async def get_classes(request: Request):
+    """取得所有支援的藥物類別"""
+    detection_service = request.app.state.detection_service
+    if not detection_service or not detection_service.is_ready():
+        raise HTTPException(status_code=503, detail="檢測服務尚未就緒")
+    
+    return {
+        "classes": detection_service.get_classes(),
+        "total_classes": len(detection_service.get_classes())
     }
 
 @app.post("/detect", response_model=DetectionResponse)

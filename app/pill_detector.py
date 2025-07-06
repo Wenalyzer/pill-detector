@@ -214,9 +214,17 @@ class PillDetector:
                 class_id = int(detections['class_id'][i])
                 confidence = float(detections['confidence'][i])
                 
+                # 獲取英文藥名
+                english_name = self.class_names[class_id] if self.class_names and class_id < len(self.class_names) else f'Class_{class_id}'
+                
+                # 轉換為中文藥名
+                chinese_name = CHINESE_DRUG_NAMES.get(english_name, english_name)
+                
                 results.append({
                     'class_id': class_id,
-                    'class_name': self.class_names[class_id] if self.class_names and class_id < len(self.class_names) else f'Class_{class_id}',
+                    'class_name': chinese_name,
+                    'class_name_en': english_name,
+                    'class_name_zh': chinese_name,
                     'confidence': confidence,
                     'bbox': [int(x1), int(y1), int(x2), int(y2)]
                 })
@@ -227,11 +235,11 @@ class PillDetector:
             logger.error(f"❌ 後處理失敗: {e}")
             return []
             
-    def _postprocess_detections(self, logits, boxes, threshold=0.5, top_k=100):
+    def _postprocess_detections(self, logits, boxes, threshold=0.7, top_k=30):
         """
-        後處理核心實現 - 每位置最高分類策略
+        後處理核心實現 - 每位置最高分類 + NMS 策略
         
-        流程: sigmoid激活 → 每位置最高分類 → 閾值過濾 → Top-K選擇 → 座標轉換
+        流程: sigmoid激活 → 每位置最高分類 → 閾值過濾 → NMS → Top-K選擇 → 座標轉換
         
         Args:
             logits: (1, 300, num_classes) 類別預測
@@ -249,7 +257,7 @@ class PillDetector:
         # 計算信心度（使用 sigmoid）
         scores = 1 / (1 + np.exp(-logits))  # sigmoid 函數
         
-        # 步驟1：每個位置取最高分類（修改方案核心）
+        # 步驟1：每個位置取最高分類
         max_scores = np.max(scores, axis=1)  # (300,) 每個位置的最高分數
         max_classes = np.argmax(scores, axis=1)  # (300,) 每個位置的最佳類別
         
@@ -258,40 +266,66 @@ class PillDetector:
         if not np.any(keep_mask):
             return {'xyxy': np.array([]).reshape(0, 4), 'confidence': np.array([]), 'class_id': np.array([])}
             
-        final_scores = max_scores[keep_mask]
-        final_classes = max_classes[keep_mask]
-        final_boxes = boxes[keep_mask]
+        filtered_scores = max_scores[keep_mask]
+        filtered_classes = max_classes[keep_mask]
+        filtered_boxes = boxes[keep_mask]
         
-        # 步驟3：Top-K 選擇（在過濾後的結果中選擇）
-        if len(final_scores) > top_k:
-            top_indices = np.argsort(final_scores)[-top_k:]
-            final_scores = final_scores[top_indices]
-            final_classes = final_classes[top_indices]
-            final_boxes = final_boxes[top_indices]
-        
-        # 座標轉換: cxcywh → xyxy，並縮放到配置指定的絕對座標
-        xyxy_boxes = CoordinateUtils.cxcywh_to_xyxy(final_boxes)
+        # 步驟3：座標轉換 (在NMS之前進行，因為NMS需要xyxy格式)
+        xyxy_boxes = CoordinateUtils.cxcywh_to_xyxy(filtered_boxes)
         target_size = INPUT_SIZE[0]  # 使用配置中的尺寸（width = height）
         scaled_boxes = xyxy_boxes * target_size
         
+        # 步驟4：NMS (非極大值抑制) - 移除重複檢測
+        from .config import NMS_IOU_THRESHOLD
+        nms_boxes, nms_scores, nms_classes = CoordinateUtils.non_max_suppression(
+            scaled_boxes, filtered_scores, filtered_classes, 
+            iou_threshold=NMS_IOU_THRESHOLD
+        )
+        
+        # 步驟5：Top-K 選擇（在NMS後的結果中選擇）
+        if len(nms_scores) > top_k:
+            top_indices = np.argsort(nms_scores)[-top_k:]
+            final_boxes = nms_boxes[top_indices]
+            final_scores = nms_scores[top_indices]
+            final_classes = nms_classes[top_indices]
+        else:
+            final_boxes = nms_boxes
+            final_scores = nms_scores
+            final_classes = nms_classes
+        
         return {
-            'xyxy': scaled_boxes,
+            'xyxy': final_boxes,
             'confidence': final_scores,
             'class_id': final_classes
         }
     
         
-    def get_classes(self) -> List[str]:
+    def get_classes(self) -> List[Dict[str, str]]:
         """
-        取得所有支援的藥丸類別名稱
+        取得所有支援的藥丸類別名稱（包含中英文）
         
         從COCO標註文件載入的類別清單，用於API端點 /classes
         
         Returns:
-            List[str]: 藥丸類別名稱列表，依照COCO類別ID排序
-                      例如: ['Amoxicillin', 'Diovan 160mg', 'Lansoprazole', ...]
+            List[Dict[str, str]]: 藥丸類別名稱列表，依照COCO類別ID排序
+                                 每個項目包含英文名稱和中文名稱
+                                 例如: [{'english': 'Amoxicillin', 'chinese': '安莫西林膠囊'}, ...]
         """
-        return self.class_names or []
+        if not self.class_names:
+            return []
+        
+        result = []
+        for class_name in self.class_names:
+            # 跳過背景類別
+            if class_name == "objects-P70T-danO":
+                continue
+            
+            result.append({
+                "english": class_name,
+                "chinese": CHINESE_DRUG_NAMES.get(class_name, class_name)
+            })
+        
+        return result
         
     def is_ready(self) -> bool:
         """

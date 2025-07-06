@@ -27,6 +27,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
         fonts-dejavu-core \
+        fonts-noto-cjk \
         fontconfig \
         && \
     apt-get clean && \

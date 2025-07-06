@@ -7,7 +7,7 @@ from typing import List, Dict, Optional, Tuple
 from PIL import Image, ImageDraw
 
 from .config import *
-from .utils.font_utils import get_font
+from .utils.font_utils import get_font, supports_chinese
 
 logger = logging.getLogger(__name__)
 
@@ -62,14 +62,23 @@ class ImageAnnotator:
         
         # 第三步：繪製所有標籤並記錄位置
         label_areas = []
+        chinese_supported = supports_chinese()
+        
         for i, det in enumerate(detections):
             bbox = det['bbox']
-            class_name = det['class_name']
             confidence = det['confidence']
             color = COLORS[i % len(COLORS)]
             
+            # 根據字體支援情況選擇顯示語言
+            if chinese_supported and 'class_name_zh' in det:
+                display_name = det['class_name_zh']
+            elif 'class_name_en' in det:
+                display_name = det['class_name_en']
+            else:
+                display_name = det.get('class_name', 'Unknown')
+            
             # 準備標籤文字 (雙行格式)
-            label = f"{class_name}\n{confidence:.2f}"
+            label = f"{display_name}\n{confidence:.2f}"
             
             # 使用計算好的位置
             text_x, text_y = label_positions[i]
@@ -109,6 +118,7 @@ class ImageAnnotator:
         
         w, h = image_size
         padding = 6
+        chinese_supported = supports_chinese()
         
         # 提取所有檢測框區域
         detection_boxes = [det['bbox'] for det in detections]
@@ -123,11 +133,18 @@ class ImageAnnotator:
         # 逐個處理每個標籤
         for i, det in enumerate(detections):
             x1, y1, x2, y2 = det['bbox']
-            class_name = det['class_name']
             confidence = det['confidence']
             
+            # 根據字體支援情況選擇顯示語言（與繪製邏輯保持一致）
+            if chinese_supported and 'class_name_zh' in det:
+                display_name = det['class_name_zh']
+            elif 'class_name_en' in det:
+                display_name = det['class_name_en']
+            else:
+                display_name = det.get('class_name', 'Unknown')
+            
             # 計算標籤尺寸（復用temp_draw）
-            label_text = f"{class_name}\n{confidence:.2f}"
+            label_text = f"{display_name}\n{confidence:.2f}"
             text_bbox = temp_draw.textbbox((0, 0), label_text, font=font)
             text_width = text_bbox[2] - text_bbox[0]
             text_height = text_bbox[3] - text_bbox[1]
