@@ -217,14 +217,16 @@ class PillDetector:
                 # 獲取英文藥名
                 english_name = self.class_names[class_id] if self.class_names and class_id < len(self.class_names) else f'Class_{class_id}'
                 
-                # 轉換為中文藥名
+                # 轉換為中文藥名和藥品代碼
                 chinese_name = CHINESE_DRUG_NAMES.get(english_name, english_name)
+                drug_code = DRUG_CODES.get(english_name, "")
                 
                 results.append({
                     'class_id': class_id,
                     'class_name': chinese_name,
                     'class_name_en': english_name,
                     'class_name_zh': chinese_name,
+                    'drug_code': drug_code,
                     'confidence': confidence,
                     'bbox': [int(x1), int(y1), int(x2), int(y2)]
                 })
@@ -308,8 +310,8 @@ class PillDetector:
         
         Returns:
             List[Dict[str, str]]: 藥丸類別名稱列表，依照COCO類別ID排序
-                                 每個項目包含英文名稱和中文名稱
-                                 例如: [{'english': 'Amoxicillin', 'chinese': '安莫西林膠囊'}, ...]
+                                 每個項目包含英文名稱、中文名稱和藥品代碼
+                                 例如: [{'english': 'Amoxicillin', 'chinese': '安莫西林膠囊', 'drug_code': 'A025866100'}, ...]
         """
         if not self.class_names:
             return []
@@ -322,7 +324,8 @@ class PillDetector:
             
             result.append({
                 "english": class_name,
-                "chinese": CHINESE_DRUG_NAMES.get(class_name, class_name)
+                "chinese": CHINESE_DRUG_NAMES.get(class_name, class_name),
+                "drug_code": DRUG_CODES.get(class_name, "")
             })
         
         return result

@@ -114,3 +114,25 @@ CHINESE_DRUG_NAMES = {
     "Through": "便通樂錠",
     "Utraphen": "立除痛錠",
 }
+
+# 藥品代碼對應表
+DRUG_CODES = {
+    "Acetal": "A032320100",
+    "Alprazolam": "AB577401G0", 
+    "Amoxicillin": "A025866100",
+    "Biotase": "A012876100",
+    "Bonstan": "AC35705100",
+    "Cinnazine": "AB01673100",
+    "Diovan_160mg": "BC23374100",
+    "Diovan_80mg": "BC23373100",
+    "Diphenidol": "AC15078100",
+    "Folacin": "AC346701G0",
+    "Lansoprazole": "A044261100",
+    "Mozapry": "AC55584100",
+    "Nuspas": "AC48150100",
+    "Relecox": "AC59295100",
+    "Silence": "AC192471G0",
+    "Takepron": "BC24273100",
+    "Through": "A037697100",
+    "Utraphen": "AC57777100",
+}

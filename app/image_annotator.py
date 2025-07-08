@@ -77,8 +77,8 @@ class ImageAnnotator:
             else:
                 display_name = det.get('class_name', 'Unknown')
             
-            # 準備標籤文字 (雙行格式)
-            label = f"{display_name}\n{confidence:.2f}"
+            # 準備標籤文字 (僅顯示藥名)
+            label = display_name
             
             # 使用計算好的位置
             text_x, text_y = label_positions[i]

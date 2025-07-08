@@ -106,6 +106,7 @@ curl -X POST "/detect" \
         "class_name": "安莫西林膠囊",
         "class_name_en": "Amoxicillin",
         "class_name_zh": "安莫西林膠囊",
+        "drug_code": "A025866100",
         "confidence": 0.95,
         "bbox": [x1, y1, x2, y2]
       }
@@ -129,6 +130,7 @@ curl -X POST "/detect" \
   - `class_name`: 中文藥丸名稱 (string)
   - `class_name_en`: 英文藥丸名稱 (string)
   - `class_name_zh`: 中文藥丸名稱 (string)
+  - `drug_code`: 藥品許可證字號 (string)
   - `confidence`: 信心度 0-1 (float)
   - `bbox`: 邊界框座標 [x1, y1, x2, y2] (array)
 - **`data.annotated_image`**: 標註後圖片 (base64 data URL)
@@ -184,6 +186,7 @@ fetch('/detect', {
         // 顯示檢測結果
         data.data.detections.forEach((detection, index) => {
             console.log(`${index + 1}. ${detection.class_name} (${detection.class_name_en})`);
+            console.log(`   藥品代碼: ${detection.drug_code}`);
             console.log(`   信心度: ${detection.confidence.toFixed(2)}`);
         });
         
@@ -209,11 +212,13 @@ curl -X GET "https://pill-detector-23010935669.us-central1.run.app/classes"
   "classes": [
     {
       "english": "Amoxicillin",
-      "chinese": "安莫西林膠囊"
+      "chinese": "安莫西林膠囊",
+      "drug_code": "A025866100"
     },
     {
       "english": "Diovan_160mg", 
-      "chinese": "得安穩錠160mg"
+      "chinese": "得安穩錠160mg",
+      "drug_code": "BC23374100"
     }
   ],
   "total_classes": 18
