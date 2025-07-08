@@ -115,6 +115,14 @@ curl -X POST "/detect" \
     "image_info": {
       "original_size": [1920, 1080],
       "mode": "RGB"
+    },
+    "quality_analysis": {
+      "should_retake": false,
+      "reason": "good_quality",
+      "message": "檢測品質良好，識別結果可信",
+      "quality_score": 0.95,
+      "suggestions": ["可考慮重新拍攝以提高識別準確度"],
+      "uncertain_items": []
     }
   }
 }
@@ -136,6 +144,13 @@ curl -X POST "/detect" \
 - **`data.image_info`**: 圖片資訊 (object)
   - `original_size`: 原始圖片尺寸 [width, height] (array)
   - `mode`: 圖片模式，如 "RGB" (string)
+- **`data.quality_analysis`**: 🆕 檢測品質分析 (object)
+  - `should_retake`: 是否建議重新拍攝 (boolean)
+  - `reason`: 分析原因 ("good_quality", "low_confidence", "no_detection", "partial_uncertainty") (string)
+  - `message`: 品質分析訊息 (string)
+  - `quality_score`: 品質分數 0-1，越高越好 (float, optional)
+  - `suggestions`: 改善建議陣列 (array, optional)
+  - `uncertain_items`: 低信心度項目索引 (array, optional)
 
 ## 💻 程式整合範例
 
@@ -187,6 +202,12 @@ fetch('/detect', {
             console.log(`   信心度: ${detection.confidence.toFixed(2)}`);
         });
         
+        // 🆕 檢查品質分析並提醒用戶
+        if (data.data.quality_analysis && data.data.quality_analysis.should_retake) {
+            const qa = data.data.quality_analysis;
+            alert(`建議重新拍攝：${qa.message}\n\n改善建議：\n${qa.suggestions?.join('\n• ')}`);
+        }
+        
         // 顯示標註圖片
         document.getElementById('result').src = data.data.annotated_image;
     }
@@ -219,3 +240,127 @@ curl -X GET "https://pill-detector-23010935669.us-central1.run.app/classes"
   "total_classes": 18
 }
 ```
+
+## 🆕 智能品質分析功能
+
+### 📊 **功能概述**
+API 現在會自動分析每次檢測的品質，並在檢測結果不理想時建議用戶重新拍攝。
+
+### 🔍 **分析項目**
+1. **信心度檢查**: 檢測低信心度的藥丸識別
+2. **檢測完整性**: 確認是否有遺漏的藥丸
+3. **品質評分**: 提供 0-1 的整體品質分數
+
+### 📋 **品質分析回應詳解**
+
+#### **品質良好** (`reason: "good_quality"`)
+```json
+"quality_analysis": {
+  "should_retake": false,
+  "reason": "good_quality", 
+  "message": "檢測品質良好，識別結果可信",
+  "quality_score": 0.95
+}
+```
+
+#### **部分不確定** (`reason: "partial_uncertainty"`)
+```json
+"quality_analysis": {
+  "should_retake": false,
+  "reason": "partial_uncertainty",
+  "message": "檢測品質良好，但有 2 個藥丸的信心度較低", 
+  "suggestions": ["可考慮重新拍攝以提高識別準確度"],
+  "uncertain_items": [3, 5],
+  "quality_score": 0.75
+}
+```
+
+#### **建議重拍** (`reason: "low_confidence"`)
+```json
+"quality_analysis": {
+  "should_retake": true,
+  "reason": "low_confidence",
+  "message": "有 3 個藥丸的識別信心度較低，建議重新拍攝",
+  "suggestions": [
+    "確保光線充足，避免陰影遮擋",
+    "將手機靠近一些，讓藥丸更清晰", 
+    "確保藥丸表面清潔，字體清晰可見",
+    "避免手震，保持拍攝穩定"
+  ],
+  "uncertain_items": [1, 2, 4],
+  "quality_score": 0.45
+}
+```
+
+#### **未檢測到** (`reason: "no_detection"`)
+```json
+"quality_analysis": {
+  "should_retake": true,
+  "reason": "no_detection",
+  "message": "未檢測到任何藥丸，建議重新拍攝",
+  "suggestions": [
+    "確保藥丸清晰可見",
+    "改善光線條件", 
+    "調整拍攝角度或距離"
+  ]
+}
+```
+
+### 💡 **前端整合建議**
+
+#### **JavaScript 範例**
+```javascript
+.then(data => {
+    if (data.success) {
+        // 顯示檢測結果
+        displayDetections(data.data.detections);
+        
+        // 檢查品質分析
+        const qa = data.data.quality_analysis;
+        if (qa.should_retake) {
+            // 顯示重拍建議
+            showRetakeDialog(qa);
+        } else if (qa.reason === 'partial_uncertainty') {
+            // 顯示可選重拍提示
+            showOptionalRetakeHint(qa);
+        }
+    }
+});
+
+function showRetakeDialog(qa) {
+    const message = `
+        📷 建議重新拍攝
+        
+        ${qa.message}
+        
+        💡 改善建議：
+        ${qa.suggestions.map(s => `• ${s}`).join('\n')}
+        
+        是否重新拍攝？
+    `;
+    
+    if (confirm(message)) {
+        // 重新啟動拍照功能
+        startCamera();
+    }
+}
+```
+
+#### **品質分數使用**
+```javascript
+const qa = data.data.quality_analysis;
+const qualityPercent = Math.round(qa.quality_score * 100);
+
+// 顯示品質指示器
+document.getElementById('quality-indicator').innerHTML = `
+    <div class="quality-score ${qa.quality_score > 0.8 ? 'good' : qa.quality_score > 0.6 ? 'fair' : 'poor'}">
+        品質: ${qualityPercent}%
+    </div>
+`;
+```
+
+### 🎯 **最佳實踐**
+1. **強制重拍**: `should_retake: true` 時，建議用戶重新拍攝
+2. **可選提示**: `partial_uncertainty` 時，可提供可選的重拍選項
+3. **品質指示**: 使用 `quality_score` 提供視覺化的品質指示器
+4. **具體建議**: 顯示 `suggestions` 陣列中的具體改善建議

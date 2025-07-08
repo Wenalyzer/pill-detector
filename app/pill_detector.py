@@ -207,6 +207,11 @@ class PillDetector:
                 top_k=TOP_K
             )
             
+            # 分析相似外觀檢測
+            similar_pairs = []
+            if 'pre_nms_candidates' in detections:
+                similar_pairs = self._find_similar_appearance_detections(detections['pre_nms_candidates'])
+            
             # 轉換為 API 輸出格式
             results = []
             for i in range(len(detections['xyxy'])):
@@ -228,8 +233,12 @@ class PillDetector:
                     'confidence': confidence,
                     'bbox': [int(x1), int(y1), int(x2), int(y2)]
                 })
-                    
-            return results
+            
+            # 返回結果時包含相似外觀檢測信息
+            return {
+                'detections': results,
+                'similar_appearance_pairs': similar_pairs
+            }
                 
         except Exception as e:
             logger.error(f"❌ 後處理失敗: {e}")
@@ -275,14 +284,21 @@ class PillDetector:
         target_size = INPUT_SIZE[0]  # 使用配置中的尺寸（width = height）
         scaled_boxes = xyxy_boxes * target_size
         
-        # 步驟4：NMS (非極大值抑制) - 移除重複檢測
+        # 步驟4：保存 NMS 前的候選檢測（用於相似外觀分析）
+        pre_nms_candidates = {
+            'boxes': scaled_boxes.copy(),
+            'scores': filtered_scores.copy(), 
+            'classes': filtered_classes.copy()
+        }
+        
+        # 步驟5：NMS (非極大值抑制) - 移除重複檢測
         from .config import NMS_IOU_THRESHOLD
         nms_boxes, nms_scores, nms_classes = CoordinateUtils.non_max_suppression(
             scaled_boxes, filtered_scores, filtered_classes, 
             iou_threshold=NMS_IOU_THRESHOLD
         )
         
-        # 步驟5：Top-K 選擇（在NMS後的結果中選擇）
+        # 步驟6：Top-K 選擇（在NMS後的結果中選擇）
         if len(nms_scores) > top_k:
             top_indices = np.argsort(nms_scores)[-top_k:]
             final_boxes = nms_boxes[top_indices]
@@ -296,9 +312,45 @@ class PillDetector:
         return {
             'xyxy': final_boxes,
             'confidence': final_scores,
-            'class_id': final_classes
+            'class_id': final_classes,
+            'pre_nms_candidates': pre_nms_candidates  # 新增：NMS 前的候選檢測
         }
     
+    def _find_similar_appearance_detections(self, pre_nms_candidates: Dict) -> List[Tuple[int, int]]:
+        """
+        檢測相似外觀情況：同位置有多個不同類別且信心度相近的檢測
+        
+        Args:
+            pre_nms_candidates: NMS 前的候選檢測，包含 'boxes', 'scores', 'classes'
+            
+        Returns:
+            List[Tuple[int, int]]: 相似外觀檢測對的索引列表
+        """
+        from .config import SIMILAR_POSITION_IOU_THRESHOLD, SIMILAR_CONFIDENCE_THRESHOLD
+        from .utils.coordinate_utils import CoordinateUtils
+        
+        boxes = pre_nms_candidates['boxes']
+        scores = pre_nms_candidates['scores'] 
+        classes = pre_nms_candidates['classes']
+        
+        similar_pairs = []
+        
+        # 逐對比較所有候選檢測
+        for i in range(len(boxes)):
+            for j in range(i + 1, len(boxes)):
+                # 檢查是否為不同類別
+                if classes[i] != classes[j]:
+                    # 計算位置相似性 (IoU)
+                    iou = CoordinateUtils.calculate_iou(boxes[i], boxes[j])
+                    
+                    if iou > SIMILAR_POSITION_IOU_THRESHOLD:
+                        # 檢查信心度相似性
+                        confidence_diff = abs(scores[i] - scores[j])
+                        
+                        if confidence_diff < SIMILAR_CONFIDENCE_THRESHOLD:
+                            similar_pairs.append((i, j))
+        
+        return similar_pairs
         
     def get_classes(self) -> List[Dict[str, str]]:
         """

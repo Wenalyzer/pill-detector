@@ -28,6 +28,10 @@ CONFIDENCE_THRESHOLD = 0.5  # 信心度閾值
 TOP_K = 30                  # 選擇前 K 個檢測結果
 NMS_IOU_THRESHOLD = 0.5     # NMS IoU 閾值，用於移除重複檢測
 
+# 相似外觀檢測設定
+SIMILAR_POSITION_IOU_THRESHOLD = 0.5     # 位置相似性閾值，用於檢測同位置的相似外觀
+SIMILAR_CONFIDENCE_THRESHOLD = 0.2       # 信心度差距閾值，用於檢測相近信心度的檢測
+
 # 圖像標註顯示設定
 COLORS = [
     (220, 53, 69),   # 深紅色

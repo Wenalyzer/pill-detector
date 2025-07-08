@@ -192,6 +192,21 @@ async def test_interface():
             .error {{ background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }}
             .detection-list {{ margin-top: 10px; }}
             .detection-item {{ background: #f8f9fa; padding: 10px; margin: 5px 0; border-radius: 4px; border-left: 4px solid #007bff; }}
+            .detection-item.uncertain {{ border-left-color: #ffc107; background: #fff3cd; }}
+            .quality-analysis {{ margin-top: 15px; padding: 15px; border-radius: 8px; border: 2px solid; }}
+            .quality-good {{ border-color: #28a745; background: #d4edda; color: #155724; }}
+            .quality-warning {{ border-color: #ffc107; background: #fff3cd; color: #856404; }}
+            .quality-danger {{ border-color: #dc3545; background: #f8d7da; color: #721c24; }}
+            .quality-score {{ font-size: 1.2em; font-weight: bold; margin: 10px 0; }}
+            .quality-bar {{ background: #e9ecef; height: 20px; border-radius: 10px; margin: 10px 0; overflow: hidden; }}
+            .quality-fill {{ height: 100%; transition: width 0.3s ease; border-radius: 10px; }}
+            .quality-fill.good {{ background: #28a745; }}
+            .quality-fill.fair {{ background: #ffc107; }}
+            .quality-fill.poor {{ background: #dc3545; }}
+            .suggestions-list {{ margin-top: 10px; }}
+            .suggestions-list li {{ margin: 5px 0; padding: 5px; background: rgba(255,255,255,0.5); border-radius: 4px; }}
+            .retake-dialog {{ position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); z-index: 1000; max-width: 500px; }}
+            .modal-overlay {{ position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; }}
             img {{ max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px; margin-top: 10px; }}
             .loading {{ display: none; text-align: center; color: #666; }}
         </style>
@@ -249,11 +264,62 @@ async def test_interface():
                 
                 if (success && data && data.detections) {{
                     html += `<p><strong>檢測到 ${{data.total_detections}} 個藥丸：</strong></p>`;
+                    
+                    // 品質分析顯示
+                    if (data.quality_analysis) {{
+                        const qa = data.quality_analysis;
+                        const qualityClass = qa.should_retake ? 'quality-danger' : 
+                                           qa.reason === 'partial_uncertainty' ? 'quality-warning' : 'quality-good';
+                        
+                        html += `<div class="quality-analysis ${{qualityClass}}">
+                            <h4>📊 檢測品質分析</h4>
+                            <div class="quality-score">品質評分: ${{qa.quality_score ? Math.round(qa.quality_score * 100) : 'N/A'}}%</div>`;
+                        
+                        if (qa.quality_score) {{
+                            const barClass = qa.quality_score > 0.8 ? 'good' : qa.quality_score > 0.6 ? 'fair' : 'poor';
+                            html += `<div class="quality-bar">
+                                <div class="quality-fill ${{barClass}}" style="width: ${{qa.quality_score * 100}}%"></div>
+                            </div>`;
+                        }}
+                        
+                        html += `<p><strong>${{qa.should_retake ? '⚠️ 建議重新拍攝' : qa.reason === 'partial_uncertainty' ? '💡 可考慮重拍' : '✅ 檢測品質良好'}}</strong></p>
+                                <p>${{qa.message}}</p>`;
+                        
+                        if (qa.suggestions && qa.suggestions.length > 0) {{
+                            html += '<p><strong>💡 改善建議：</strong></p><ul class="suggestions-list">';
+                            qa.suggestions.forEach(suggestion => {{
+                                html += `<li>${{suggestion}}</li>`;
+                            }});
+                            html += '</ul>';
+                        }}
+                        
+                        // 顯示相似外觀檢測詳細信息
+                        if (qa.similar_appearance_items && qa.similar_appearance_items.length > 0) {{
+                            html += `<p><strong>🔍 檢測到外觀相似情況：</strong></p>
+                                    <p style="font-size: 0.9em; color: #856404;">
+                                        發現 ${{qa.similar_appearance_items.length}} 組位置相近且信心度相似的不同類別檢測，
+                                        可能是模型對同一藥丸的分類不確定。
+                                    </p>`;
+                        }}
+                        
+                        html += '</div>';
+                        
+                        // 如果建議重拍，顯示更明顯的提示
+                        if (qa.should_retake) {{
+                            setTimeout(() => showRetakeDialog(qa), 500);
+                        }}
+                    }}
+                    
                     html += '<div class="detection-list">';
                     
                     data.detections.forEach((det, idx) => {{
-                        html += `<div class="detection-item">
+                        const isUncertain = data.quality_analysis && 
+                                          data.quality_analysis.uncertain_items && 
+                                          data.quality_analysis.uncertain_items.includes(idx + 1);
+                        
+                        html += `<div class="detection-item${{isUncertain ? ' uncertain' : ''}}">
                             <strong>${{det.class_name}}</strong> - 信心度: ${{(det.confidence * 100).toFixed(1)}}%
+                            ${{isUncertain ? '<span style="color: #856404; font-weight: bold;"> ⚠️ 信心度較低</span>' : ''}}
                             <br>位置: [${{det.bbox.join(', ')}}]
                         </div>`;
                     }});
@@ -293,6 +359,52 @@ async def test_interface():
                     preview.innerHTML = '';
                 }}
             }});
+            
+            // 顯示重拍建議對話框
+            function showRetakeDialog(qa) {{
+                const overlay = document.createElement('div');
+                overlay.className = 'modal-overlay';
+                
+                const dialog = document.createElement('div');
+                dialog.className = 'retake-dialog';
+                
+                let suggestionsList = '';
+                if (qa.suggestions && qa.suggestions.length > 0) {{
+                    suggestionsList = '<ul>' + qa.suggestions.map(s => `<li>${{s}}</li>`).join('') + '</ul>';
+                }}
+                
+                dialog.innerHTML = `
+                    <h3 style="color: #dc3545; margin-top: 0;">📷 建議重新拍攝</h3>
+                    <p><strong>${{qa.message}}</strong></p>
+                    ${{suggestionsList ? '<p><strong>💡 改善建議：</strong></p>' + suggestionsList : ''}}
+                    <div style="text-align: center; margin-top: 20px;">
+                        <button onclick="closeRetakeDialog()" style="background: #6c757d; margin-right: 10px;">知道了</button>
+                        <button onclick="restartDetection(); closeRetakeDialog();" style="background: #007bff;">重新檢測</button>
+                    </div>
+                `;
+                
+                document.body.appendChild(overlay);
+                document.body.appendChild(dialog);
+                
+                // 點擊背景關閉
+                overlay.onclick = closeRetakeDialog;
+            }}
+            
+            function closeRetakeDialog() {{
+                const overlay = document.querySelector('.modal-overlay');
+                const dialog = document.querySelector('.retake-dialog');
+                if (overlay) overlay.remove();
+                if (dialog) dialog.remove();
+            }}
+            
+            function restartDetection() {{
+                // 清空結果和表單
+                document.getElementById('result').innerHTML = '';
+                document.getElementById('imageFile').value = '';
+                document.getElementById('imageUrl').value = '';
+                document.getElementById('imagePreview').innerHTML = '';
+                window.currentResult = null;
+            }}
             
             // 複製結果功能
             function copyResult(type) {{

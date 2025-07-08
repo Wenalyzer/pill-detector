@@ -6,7 +6,7 @@ import logging
 import base64
 import time
 from io import BytesIO
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 import requests
 import numpy as np
 from PIL import Image
@@ -193,7 +193,7 @@ class DetectionService:
             logger.debug(f"🖼️ 處理圖像尺寸: {image.size}")
             
             # 執行檢測（使用處理後的560x560圖片）
-            detections, processed_image, inference_time, preprocess_time, postprocess_time = await self._perform_detection(image)
+            detections, processed_image, inference_time, preprocess_time, postprocess_time, similar_pairs = await self._perform_detection(image)
             
             # 執行標註（座標和圖片完全匹配）
             annotation_start = time.perf_counter()
@@ -203,6 +203,9 @@ class DetectionService:
             total_time = time.perf_counter() - start_time
             self._log_performance_breakdown(preprocess_time, inference_time, postprocess_time, annotation_time, total_time)
             
+            # 分析檢測品質（包含相似外觀檢測）
+            quality_analysis = self._analyze_detection_quality(detections, similar_pairs)
+            
             return {
                 'detections': detections,
                 'annotated_image': f"data:image/{OUTPUT_IMAGE_FORMAT.lower()};base64,{self._image_to_base64(annotated_image)}",
@@ -211,7 +214,8 @@ class DetectionService:
                 'image_info': {
                     'original_size': image.size,
                     'mode': image.mode
-                }
+                },
+                'quality_analysis': quality_analysis
             }
             
         except (IOError, OSError) as e:
@@ -224,7 +228,7 @@ class DetectionService:
             logger.error(f"❌ 檢測和標註失敗: {e}", exc_info=True)
             raise Exception("檢測服務內部錯誤")
     
-    async def _perform_detection(self, image: Image.Image) -> Tuple[list, Image.Image, float, float, float]:
+    async def _perform_detection(self, image: Image.Image) -> Tuple[list, Image.Image, float, float, float, list]:
         """執行檢測，返回檢測結果、處理後的圖片和時間統計"""
         # 轉換為 numpy 數組
         image_array = np.array(image)
@@ -253,11 +257,20 @@ class DetectionService:
         
         # 後處理（圖像已統一為INPUT_SIZE配置尺寸，無需傳遞尺寸）
         postprocess_start = time.perf_counter()
-        detections = self.detector.postprocess_results(outputs)
+        detection_results = self.detector.postprocess_results(outputs)
         postprocess_time = time.perf_counter() - postprocess_start
         
+        # 處理新的返回格式
+        if isinstance(detection_results, dict):
+            detections = detection_results['detections']
+            similar_pairs = detection_results.get('similar_appearance_pairs', [])
+        else:
+            # 向後相容性
+            detections = detection_results
+            similar_pairs = []
+        
         logger.debug(f"🎯 檢測到 {len(detections)} 個目標")
-        return detections, processed_image, inference_time, preprocess_time, postprocess_time
+        return detections, processed_image, inference_time, preprocess_time, postprocess_time, similar_pairs
     
     def _image_to_base64(self, image: Image.Image, format: str = OUTPUT_IMAGE_FORMAT, quality: int = OUTPUT_IMAGE_QUALITY) -> str:
         """將圖像轉換為 base64 字符串"""
@@ -290,6 +303,92 @@ class DetectionService:
         """統一日誌格式化性能分解"""
         logger.info(f"⚡ 預處理: {preprocess:.2f}s | 推理: {inference:.2f}s | "
                    f"後處理: {postprocess:.2f}s | 標註: {annotation:.2f}s | 總計: {total:.2f}s")
+    
+    def _analyze_detection_quality(self, detections: List[Dict], similar_pairs: List[Tuple[int, int]] = None) -> Dict:
+        """
+        分析檢測品質並提供重拍建議
+        
+        Args:
+            detections: 檢測結果列表
+            similar_pairs: 相似外觀檢測對列表
+            
+        Returns:
+            品質分析結果，包含是否建議重拍和具體建議
+        """
+        if not detections:
+            return {
+                'should_retake': True,
+                'reason': 'no_detection',
+                'message': '未檢測到任何藥丸，建議重新拍攝',
+                'suggestions': [
+                    '確保藥丸清晰可見',
+                    '改善光線條件',
+                    '調整拍攝角度或距離'
+                ]
+            }
+        
+        # 優先檢查相似外觀情況
+        if similar_pairs and len(similar_pairs) > 0:
+            return {
+                'should_retake': True,
+                'reason': 'similar_appearance',
+                'message': f'檢測到 {len(similar_pairs)} 組外觀相似的藥丸，建議重新拍攝以便更清晰區分',
+                'suggestions': [
+                    '調整拍攝距離，找到最清晰的對焦點',
+                    '嘗試翻轉藥丸，拍攝有印記或文字的一面（如果有的話）',
+                    '保持手機穩定，避免手震造成模糊',
+                    '調整光線角度，讓藥丸表面更清晰可見'
+                ],
+                'similar_appearance_items': similar_pairs,
+                'quality_score': max(0.3, 0.8 - len(similar_pairs) * 0.1)  # 根據相似外觀數量降低分數
+            }
+        
+        # 檢查低信心度檢測
+        low_confidence_count = 0
+        uncertain_detections = []
+        
+        for i, detection in enumerate(detections):
+            if detection['confidence'] < 0.7:  # 信心度 < 0.7 算不確定
+                low_confidence_count += 1
+                uncertain_detections.append(i + 1)
+        
+        # 如果超過一半檢測信心度不高，建議重拍
+        total_detections = len(detections)
+        low_confidence_ratio = low_confidence_count / total_detections
+        
+        if low_confidence_ratio > 0.5:
+            return {
+                'should_retake': True,
+                'reason': 'low_confidence',
+                'message': f'有 {low_confidence_count} 個藥丸的識別信心度較低，建議重新拍攝',
+                'suggestions': [
+                    '調整拍攝距離，找到最清晰的對焦點',
+                    '嘗試翻轉藥丸，確認是否有更清晰的印記面',
+                    '避免手震，保持拍攝穩定',
+                    '確保光線充足，避免陰影遮擋'
+                ],
+                'uncertain_items': uncertain_detections,
+                'quality_score': 1.0 - low_confidence_ratio
+            }
+        elif low_confidence_count > 0:
+            # 有少量低信心度檢測，給予提醒但不強制重拍
+            return {
+                'should_retake': False,
+                'reason': 'partial_uncertainty',
+                'message': f'檢測品質良好，但有 {low_confidence_count} 個藥丸的信心度較低',
+                'suggestions': [
+                    '可考慮重新拍攝以提高識別準確度'
+                ],
+                'uncertain_items': uncertain_detections,
+                'quality_score': 1.0 - low_confidence_ratio
+            }
+        
+        return {
+            'should_retake': False,
+            'reason': 'good_quality',
+            'message': '檢測品質良好，識別結果可信',
+            'quality_score': 1.0 - low_confidence_ratio
+        }
     
     def get_service_info(self) -> Dict:
         """獲取服務資訊"""
