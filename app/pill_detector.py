@@ -222,11 +222,9 @@ class PillDetector:
                 drug_code = DRUG_CODES.get(english_name, "")
                 
                 results.append({
-                    'class_id': class_id,
-                    'class_name': chinese_name,
+                    'class_name': drug_code,
                     'class_name_en': english_name,
                     'class_name_zh': chinese_name,
-                    'drug_code': drug_code,
                     'confidence': confidence,
                     'bbox': [int(x1), int(y1), int(x2), int(y2)]
                 })
@@ -325,7 +323,7 @@ class PillDetector:
             result.append({
                 "english": class_name,
                 "chinese": CHINESE_DRUG_NAMES.get(class_name, class_name),
-                "drug_code": DRUG_CODES.get(class_name, "")
+                "class_name": DRUG_CODES.get(class_name, "")
             })
         
         return result

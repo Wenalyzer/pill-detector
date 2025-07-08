@@ -207,6 +207,8 @@ class DetectionService:
                 'detections': detections,
                 'annotated_image': f"data:image/{OUTPUT_IMAGE_FORMAT.lower()};base64,{self._image_to_base64(annotated_image)}",
                 'total_detections': len(detections),
+                'elapsed_time': round(total_time, 3),  # 總執行時間(秒, 精確到毫秒)
+                'model_name': 'rf-detr_1024',
                 'label_areas': label_areas,  # 開發用
                 'image_info': {
                     'original_size': image.size,

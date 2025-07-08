@@ -102,17 +102,17 @@ curl -X POST "/detect" \
   "data": {
     "detections": [
       {
-        "class_id": 1,
-        "class_name": "安莫西林膠囊",
+        "class_name": "A025866100",
         "class_name_en": "Amoxicillin",
         "class_name_zh": "安莫西林膠囊",
-        "drug_code": "A025866100",
         "confidence": 0.95,
         "bbox": [x1, y1, x2, y2]
       }
     ],
     "annotated_image": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ...",
     "total_detections": 2,
+    "elapsed_time": 2.145,
+    "model_name": "rf-detr_1024",
     "image_info": {
       "original_size": [1920, 1080],
       "mode": "RGB"
@@ -126,15 +126,15 @@ curl -X POST "/detect" \
 - **`success`**: 檢測是否成功 (boolean)
 - **`message`**: 結果訊息 (string)  
 - **`data.detections`**: 檢測結果陣列
-  - `class_id`: 類別 ID (integer)
-  - `class_name`: 中文藥丸名稱 (string)
+  - `class_name`: 藥品許可證字號 (string)
   - `class_name_en`: 英文藥丸名稱 (string)
   - `class_name_zh`: 中文藥丸名稱 (string)
-  - `drug_code`: 藥品許可證字號 (string)
   - `confidence`: 信心度 0-1 (float)
   - `bbox`: 邊界框座標 [x1, y1, x2, y2] (array)
 - **`data.annotated_image`**: 標註後圖片 (base64 data URL)
 - **`data.total_detections`**: 檢測到的藥丸總數 (integer)
+- **`data.elapsed_time`**: 總執行時間，精確到毫秒 (float, 秒)
+- **`data.model_name`**: 使用的模型名稱 (string)
 - **`data.image_info`**: 圖片資訊 (object)
   - `original_size`: 原始圖片尺寸 [width, height] (array)
   - `mode`: 圖片模式，如 "RGB" (string)
@@ -156,10 +156,13 @@ with open('image.jpg', 'rb') as f:
 result = response.json()
 if result['success']:
     print(f"檢測到 {result['data']['total_detections']} 個藥丸")
+    print(f"執行時間: {result['data']['elapsed_time']:.3f} 秒")
+    print(f"使用模型: {result['data']['model_name']}")
     
     # 處理檢測結果
     for detection in result['data']['detections']:
-        print(f"發現: {detection['class_name']} ({detection['class_name_en']})")
+        print(f"發現: {detection['class_name_zh']} ({detection['class_name_en']})")
+        print(f"藥品代碼: {detection['class_name']}")
         print(f"信心度: {detection['confidence']:.2f}")
         print(f"位置: {detection['bbox']}")
     
@@ -182,11 +185,12 @@ fetch('/detect', {
 .then(data => {
     if (data.success) {
         console.log(`發現 ${data.data.total_detections} 個藥丸`);
+        console.log(`執行時間: ${data.data.elapsed_time.toFixed(3)} 秒`);
         
         // 顯示檢測結果
         data.data.detections.forEach((detection, index) => {
-            console.log(`${index + 1}. ${detection.class_name} (${detection.class_name_en})`);
-            console.log(`   藥品代碼: ${detection.drug_code}`);
+            console.log(`${index + 1}. ${detection.class_name_zh} (${detection.class_name_en})`);
+            console.log(`   藥品代碼: ${detection.class_name}`);
             console.log(`   信心度: ${detection.confidence.toFixed(2)}`);
         });
         
@@ -213,12 +217,12 @@ curl -X GET "https://pill-detector-23010935669.us-central1.run.app/classes"
     {
       "english": "Amoxicillin",
       "chinese": "安莫西林膠囊",
-      "drug_code": "A025866100"
+      "class_name": "A025866100"
     },
     {
       "english": "Diovan_160mg", 
       "chinese": "得安穩錠160mg",
-      "drug_code": "BC23374100"
+      "class_name": "BC23374100"
     }
   ],
   "total_classes": 18

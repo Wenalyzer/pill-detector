@@ -6,7 +6,7 @@
 import logging
 
 # API 服務基本設定
-API_VERSION = "2.1.3"
+API_VERSION = "2.1.4"
 API_TITLE = "💊 藥丸檢測 API"
 API_DESCRIPTION = "AI 藥丸識別服務 - 使用 RF-DETR ONNX 模型進行藥丸檢測"
 
