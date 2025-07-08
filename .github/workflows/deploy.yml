@@ -57,19 +57,26 @@ jobs:
     steps:
     - name: 📦 部署到 ${{ needs.determine-environment.outputs.environment }}
       run: |
+        # 產生時間戳標籤
+        TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+        DEPLOY_TAG="deploy-${TIMESTAMP}"
+        
         echo "🚀 部署到環境: ${{ needs.determine-environment.outputs.environment }}"
         echo "🌐 部署 URL: ${{ needs.determine-environment.outputs.deploy_url }}"
-        echo "🏷️ 映像標籤: latest"
+        echo "🏷️ 映像標籤: $DEPLOY_TAG"
         
         echo "🏠 部署到個人伺服器..."
-        # 使用 self-hosted runner，直接在伺服器上執行
+        # 使用時間戳標籤避免衝突
         docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$DEPLOY_TAG
+        
+        # 停止舊容器並啟動新容器
         docker stop pill-detector-main || true
         docker rm pill-detector-main || true
         docker run -d --name pill-detector-main -p 8000:8000 \
           --restart unless-stopped \
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-        echo "✅ 個人伺服器部署完成"
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$DEPLOY_TAG
+        echo "✅ 個人伺服器部署完成 (標籤: $DEPLOY_TAG)"
     
     - name: 🔍 部署後健康檢查
       run: |
