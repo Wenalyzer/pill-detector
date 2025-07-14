@@ -133,7 +133,7 @@ open http://localhost:8000/test
 │   └── _annotations.coco.json # 📊 COCO格式類別定義
 │
 ├── models/                   # 🧠 ONNX 模型
-│   └── inference_model.onnx  # (python scripts/download_model.py 下載)
+│   └── inference_model_v3.0.1.onnx  # (python scripts/download_model.py 下載)
 │
 ├── tests/                    # 🧪 測試與驗證
 │   ├── test_api.py          # API 功能測試

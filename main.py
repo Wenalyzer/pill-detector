@@ -253,7 +253,7 @@ async def test_interface():
                     
                     data.detections.forEach((det, idx) => {{
                         html += `<div class="detection-item">
-                            <strong>${{det.class_name}}</strong> - 信心度: ${{(det.confidence * 100).toFixed(1)}}%
+                            <strong>${{det.class_name_zh}}</strong> - 信心度: ${{(det.confidence * 100).toFixed(1)}}%
                             <br>位置: [${{det.bbox.join(', ')}}]
                         </div>`;
                     }});

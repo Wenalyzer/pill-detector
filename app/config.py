@@ -15,7 +15,7 @@ MAX_FILE_SIZE = 25 * 1024 * 1024  # 25MB
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"}
 
 # 模型與標註檔案設定
-MODEL_PATH = "models/inference_model.onnx"
+MODEL_PATH = f"models/inference_model_v{API_VERSION}.onnx"
 COCO_ANNOTATIONS_PATH = "app/_annotations.coco.json"
 INPUT_SIZE = (560, 560)  # (width, height) - ONNX 模型輸入尺寸
 

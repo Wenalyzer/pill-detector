@@ -47,7 +47,7 @@ RUN pip install --upgrade pip && \
     rm -rf /wheels /root/.cache/pip && \
     python /tmp/download_model.py && \
     rm -f /tmp/download_model.py && \
-    ls -la models/inference_model.onnx && \
+    ls -la models/inference_model_v*.onnx && \
     groupadd -r appuser && useradd -r -g appuser appuser && \
     chown -R appuser:appuser /workspace
 USER appuser
