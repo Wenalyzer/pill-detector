@@ -1,23 +1,259 @@
 {
   "categories": [
-    {"id": 0, "name": "objects-P70T-danO", "supercategory": "none"},
-    {"id": 1, "name": "Acetal", "supercategory": "objects-P70T-danO"},
-    {"id": 2, "name": "Alprazolam", "supercategory": "objects-P70T-danO"},
-    {"id": 3, "name": "Amoxicillin", "supercategory": "objects-P70T-danO"},
-    {"id": 4, "name": "Biotase", "supercategory": "objects-P70T-danO"},
-    {"id": 5, "name": "Bonstan", "supercategory": "objects-P70T-danO"},
-    {"id": 6, "name": "Cinnazine", "supercategory": "objects-P70T-danO"},
-    {"id": 7, "name": "Diovan_160mg", "supercategory": "objects-P70T-danO"},
-    {"id": 8, "name": "Diovan_80mg", "supercategory": "objects-P70T-danO"},
-    {"id": 9, "name": "Diphenidol", "supercategory": "objects-P70T-danO"},
-    {"id": 10, "name": "Folacin", "supercategory": "objects-P70T-danO"},
-    {"id": 11, "name": "Lansoprazole", "supercategory": "objects-P70T-danO"},
-    {"id": 12, "name": "Mozapry", "supercategory": "objects-P70T-danO"},
-    {"id": 13, "name": "Nuspas", "supercategory": "objects-P70T-danO"},
-    {"id": 14, "name": "Relecox", "supercategory": "objects-P70T-danO"},
-    {"id": 15, "name": "Silence", "supercategory": "objects-P70T-danO"},
-    {"id": 16, "name": "Takepron", "supercategory": "objects-P70T-danO"},
-    {"id": 17, "name": "Through", "supercategory": "objects-P70T-danO"},
-    {"id": 18, "name": "Utraphen", "supercategory": "objects-P70T-danO"}
+    {
+      "id": 0,
+      "name": "objects-9uWa-SbsP",
+      "supercategory": "none"
+    },
+    {
+      "id": 1,
+      "name": "ACETAL",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 2,
+      "name": "ALDACTIN",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 3,
+      "name": "ALPRAZOLAM",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 4,
+      "name": "AMOXICILLIN",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 5,
+      "name": "ANCILLIN",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 6,
+      "name": "ANKOMIN",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 7,
+      "name": "BIOTASE",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 8,
+      "name": "BONSTAN",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 9,
+      "name": "BYTONLIN",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 10,
+      "name": "CERIN",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 11,
+      "name": "CHLORPHENIRAMINE",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 12,
+      "name": "CIMETIDINE",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 13,
+      "name": "CINNAZINE",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 14,
+      "name": "CONAPIN",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 15,
+      "name": "CYTADINE",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 16,
+      "name": "DIMETINE",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 17,
+      "name": "DIOVAN_160mg",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 18,
+      "name": "DIOVAN_80mg",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 19,
+      "name": "DIPHENIDOL",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 20,
+      "name": "DIPROPHYLLIN",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 21,
+      "name": "DOXYNIN",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 22,
+      "name": "ECOMIN",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 23,
+      "name": "ENTRESTO",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 24,
+      "name": "FOLACIN",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 25,
+      "name": "FORXIGA",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 26,
+      "name": "FUCOLE PARAN",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 27,
+      "name": "FUCOU",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 28,
+      "name": "K.B.T.",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 29,
+      "name": "LANSOPRAZOLE",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 30,
+      "name": "LICOLONE",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 31,
+      "name": "LOSA_HYDRO",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 32,
+      "name": "MOXICLAV",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 33,
+      "name": "MOZAPRY",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 34,
+      "name": "NORVASC",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 35,
+      "name": "NUSPAS",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 36,
+      "name": "OXOLA",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 37,
+      "name": "PANADOL COLD EXTRA",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 38,
+      "name": "REGROW",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 39,
+      "name": "RELAX ANALGESIC",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 40,
+      "name": "RELECOX",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 41,
+      "name": "SAUSCON",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 42,
+      "name": "SILENCE",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 43,
+      "name": "SOMIN",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 44,
+      "name": "TAKEPRON",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 45,
+      "name": "THROUGH",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 46,
+      "name": "TINTEN",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 47,
+      "name": "TOLAX",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 48,
+      "name": "UCALON",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 49,
+      "name": "UTRAPHEN",
+      "supercategory": "objects-9uWa-SbsP"
+    },
+    {
+      "id": 50,
+      "name": "WEITUMON",
+      "supercategory": "objects-9uWa-SbsP"
+    }
   ]
 }

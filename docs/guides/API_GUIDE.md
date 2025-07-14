@@ -225,6 +225,6 @@ curl -X GET "https://pill-detector-23010935669.us-central1.run.app/classes"
       "class_name": "BC23374100"
     }
   ],
-  "total_classes": 18
+  "total_classes": 50
 }
 ```

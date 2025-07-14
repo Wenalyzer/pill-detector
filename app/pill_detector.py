@@ -317,7 +317,7 @@ class PillDetector:
         result = []
         for class_name in self.class_names:
             # 跳過背景類別
-            if class_name == "objects-P70T-danO":
+            if class_name == "objects-9uWa-SbsP":
                 continue
             
             result.append({
