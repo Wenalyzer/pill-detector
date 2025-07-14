@@ -1,22 +1,17 @@
 #!/usr/bin/env python3
 import os
-import sys
 import requests
-
-# 添加 app 目錄到 Python 路徑以導入 config
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'app'))
-from config import API_VERSION
 
 def download_model():
     """從 GitHub Release 下載 ONNX 模型"""
     
     GITHUB_USER = "Wenalyzer"
     REPO_NAME = "pill-detector"
-    VERSION = f"v{API_VERSION}"
-    FILENAME = f"inference_model_v{API_VERSION}.onnx"
+    VERSION = "v3.0.1"
+    FILENAME = "inference_model_v3.0.1.onnx"
     
     MODEL_URL = f"https://github.com/{GITHUB_USER}/{REPO_NAME}/releases/download/{VERSION}/{FILENAME}"
-    MODEL_PATH = f"models/inference_model_v{API_VERSION}.onnx"
+    MODEL_PATH = "models/inference_model_v3.0.1.onnx"
     
     if os.path.exists(MODEL_PATH):
         print(f"✅ 模型檔案已存在: {MODEL_PATH}")
